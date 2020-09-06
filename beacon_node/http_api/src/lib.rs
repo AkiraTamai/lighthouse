@@ -19,7 +19,7 @@ use std::sync::Arc;
 use tokio::sync::mpsc::UnboundedSender;
 use types::{
     Attestation, AttesterSlashing, CommitteeCache, Epoch, EthSpec, ProposerSlashing, RelativeEpoch,
-    SignedBeaconBlock, SignedVoluntaryExit,
+    SignedBeaconBlock, SignedVoluntaryExit, YamlConfig,
 };
 use warp::Filter;
 
@@ -749,6 +749,42 @@ pub fn serve<T: BeaconChainTypes>(
             })
         });
 
+    /*
+     * config/fork_schedule
+     */
+
+    let config_path = eth1_v1.and(warp::path("config"));
+
+    // GET config/fork_schedule
+    let get_config_fork_schedule = config_path
+        .clone()
+        .and(warp::path("fork_schedule"))
+        .and(warp::path::end())
+        .and(chain_filter.clone())
+        .and_then(|chain: Arc<BeaconChain<T>>| {
+            blocking_json_task(move || {
+                StateId::head()
+                    .fork(&chain)
+                    .map(|fork| api_types::GenericResponse::from(vec![fork]))
+            })
+        });
+
+    // GET config/spec
+    let get_config_spec = config_path
+        .clone()
+        .and(warp::path("spec"))
+        .and(warp::path::end())
+        .and(chain_filter.clone())
+        .and_then(|chain: Arc<BeaconChain<T>>| {
+            blocking_json_task(move || {
+                Ok(api_types::GenericResponse::from(YamlConfig::from_spec::<
+                    T::EthSpec,
+                >(
+                    &chain.spec
+                )))
+            })
+        });
+
     let routes = warp::get()
         .and(
             get_beacon_genesis
@@ -767,6 +803,8 @@ pub fn serve<T: BeaconChainTypes>(
                 .or(get_beacon_pool_attester_slashings.boxed())
                 .or(get_beacon_pool_proposer_slashings.boxed())
                 .or(get_beacon_pool_voluntary_exits.boxed())
+                .or(get_config_fork_schedule.boxed())
+                .or(get_config_spec.boxed())
                 .boxed(),
         )
         .or(warp::post().and(

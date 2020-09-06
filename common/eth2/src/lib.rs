@@ -473,6 +473,30 @@ impl BeaconNodeClient {
 
         self.get(path).await
     }
+
+    /// `GET config/fork_schedule`
+    pub async fn get_config_fork_schedule(&self) -> Result<GenericResponse<Vec<Fork>>, Error> {
+        let mut path = self.server.clone();
+
+        path.path_segments_mut()
+            .expect("path is base")
+            .push("config")
+            .push("fork_schedule");
+
+        self.get(path).await
+    }
+
+    /// `GET config/fork_schedule`
+    pub async fn get_config_spec(&self) -> Result<GenericResponse<YamlConfig>, Error> {
+        let mut path = self.server.clone();
+
+        path.path_segments_mut()
+            .expect("path is base")
+            .push("config")
+            .push("spec");
+
+        self.get(path).await
+    }
 }
 
 /// Returns `Ok(response)` if the response is a `200 OK` response. Otherwise, creates an

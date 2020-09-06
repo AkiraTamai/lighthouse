@@ -6,6 +6,10 @@ use types::{BeaconState, EthSpec, Fork, Hash256};
 pub struct StateId(CoreStateId);
 
 impl StateId {
+    pub fn head() -> Self {
+        Self(CoreStateId::Head)
+    }
+
     pub fn root<T: BeaconChainTypes>(
         &self,
         chain: &BeaconChain<T>,

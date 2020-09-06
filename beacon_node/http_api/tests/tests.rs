@@ -909,6 +909,26 @@ impl ApiTester {
 
         self
     }
+
+    pub async fn test_get_config_fork_schedule(self) -> Self {
+        let result = self.client.get_config_fork_schedule().await.unwrap().data;
+
+        let expected = vec![self.chain.head_info().unwrap().fork];
+
+        assert_eq!(result, expected);
+
+        self
+    }
+
+    pub async fn test_get_config_spec(self) -> Self {
+        let result = self.client.get_config_spec().await.unwrap().data;
+
+        let expected = YamlConfig::from_spec::<E>(&self.chain.spec);
+
+        assert_eq!(result, expected);
+
+        self
+    }
 }
 
 #[tokio::test(core_threads = 2)]
@@ -1057,5 +1077,14 @@ async fn beacon_pools_post_voluntary_exits_valid() {
 async fn beacon_pools_post_voluntary_exits_invalid() {
     ApiTester::new()
         .test_post_beacon_pool_voluntary_exits_invalid()
+        .await;
+}
+
+#[tokio::test(core_threads = 2)]
+async fn config_get() {
+    ApiTester::new()
+        .test_get_config_fork_schedule()
+        .await
+        .test_get_config_spec()
         .await;
 }
