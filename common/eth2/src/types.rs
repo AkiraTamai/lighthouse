@@ -18,10 +18,6 @@ pub struct ErrorMessage {
     pub stacktraces: Vec<String>,
 }
 
-/// The number of epochs between when a validator is eligible for activation and when they
-/// *usually* enter the activation queue.
-const EPOCHS_BEFORE_FINALITY: u64 = 3;
-
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct GenesisData {
     #[serde(with = "serde_utils::quoted")]
@@ -198,18 +194,24 @@ pub struct ValidatorData {
     pub validator: Validator,
 }
 
-// TODO: make this match the spec.
+// TODO: This does not currently match the spec, but I'm going to try and change the spec using
+// this proposal:
+//
+// https://hackmd.io/bQxMDRt1RbS1TLno8K4NPg?view
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub enum ValidatorStatus {
     Unknown,
     WaitingForEligibility,
-    WaitingForFinality(Epoch),
+    WaitingForFinality,
     WaitingInQueue,
     StandbyForActive(Epoch),
     Active,
-    ActiveAwaitingExit(Epoch),
-    Exited(Epoch),
+    ActiveAwaitingVoluntaryExit(Epoch),
+    ActiveAwaitingSlashedExit(Epoch),
+    ExitedVoluntarily(Epoch),
+    ExitedSlashed(Epoch),
     Withdrawable,
+    Withdrawn,
 }
 
 impl ValidatorStatus {
@@ -223,10 +225,18 @@ impl ValidatorStatus {
             if validator.is_withdrawable_at(epoch) {
                 ValidatorStatus::Withdrawable
             } else if validator.is_exited_at(epoch) {
-                ValidatorStatus::Exited(validator.withdrawable_epoch)
+                if validator.slashed {
+                    ValidatorStatus::ExitedSlashed(validator.withdrawable_epoch)
+                } else {
+                    ValidatorStatus::ExitedVoluntarily(validator.withdrawable_epoch)
+                }
             } else if validator.is_active_at(epoch) {
                 if validator.exit_epoch < far_future_epoch {
-                    ValidatorStatus::ActiveAwaitingExit(validator.exit_epoch)
+                    if validator.slashed {
+                        ValidatorStatus::ActiveAwaitingSlashedExit(validator.exit_epoch)
+                    } else {
+                        ValidatorStatus::ActiveAwaitingVoluntaryExit(validator.exit_epoch)
+                    }
                 } else {
                     ValidatorStatus::Active
                 }
@@ -235,9 +245,7 @@ impl ValidatorStatus {
                     ValidatorStatus::StandbyForActive(validator.activation_epoch)
                 } else if validator.activation_eligibility_epoch < far_future_epoch {
                     if finalized_epoch < validator.activation_eligibility_epoch {
-                        ValidatorStatus::WaitingForFinality(
-                            validator.activation_eligibility_epoch + EPOCHS_BEFORE_FINALITY,
-                        )
+                        ValidatorStatus::WaitingForFinality
                     } else {
                         ValidatorStatus::WaitingInQueue
                     }
