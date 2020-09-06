@@ -929,6 +929,19 @@ impl ApiTester {
 
         self
     }
+
+    pub async fn test_get_deposit_contract(self) -> Self {
+        let result = self
+            .client
+            .get_config_deposit_contract()
+            .await
+            .unwrap()
+            .data;
+
+        assert_eq!(result, expected);
+
+        self
+    }
 }
 
 #[tokio::test(core_threads = 2)]

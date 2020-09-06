@@ -497,6 +497,20 @@ impl BeaconNodeClient {
 
         self.get(path).await
     }
+
+    /// `GET config/deposit_contract`
+    pub async fn get_config_deposit_contract(
+        &self,
+    ) -> Result<GenericResponse<DepositContractData>, Error> {
+        let mut path = self.server.clone();
+
+        path.path_segments_mut()
+            .expect("path is base")
+            .push("config")
+            .push("deposit_contract");
+
+        self.get(path).await
+    }
 }
 
 /// Returns `Ok(response)` if the response is a `200 OK` response. Otherwise, creates an

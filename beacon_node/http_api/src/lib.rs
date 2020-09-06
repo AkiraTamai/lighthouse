@@ -785,6 +785,36 @@ pub fn serve<T: BeaconChainTypes>(
             })
         });
 
+    // GET config/deposit_contract
+    let get_config_deposit_contract = config_path
+        .clone()
+        .and(warp::path("deposit_contract"))
+        .and(warp::path::end())
+        .and(chain_filter.clone())
+        .and_then(|chain: Arc<BeaconChain<T>>| {
+            blocking_json_task(move || match chain.eth1_chain.as_ref() {
+                Some(eth1) => {
+                    let address = eth1.deposit_contract_address().parse().map_err(|e| {
+                        crate::reject::custom_server_error(format!(
+                            "internal contract address is invalid: {:?}",
+                            e
+                        ))
+                    })?;
+
+                    Ok(api_types::GenericResponse::from(
+                        api_types::DepositContractData {
+                            address,
+                            chain_id: eth1.deposit_contract_chain_id(),
+                        },
+                    ))
+                }
+                // TODO: figure out how to return the real value here.
+                None => Err(crate::reject::custom_not_found(
+                    "node is not syncing the eth1 chain".to_string(),
+                )),
+            })
+        });
+
     let routes = warp::get()
         .and(
             get_beacon_genesis
@@ -805,6 +835,7 @@ pub fn serve<T: BeaconChainTypes>(
                 .or(get_beacon_pool_voluntary_exits.boxed())
                 .or(get_config_fork_schedule.boxed())
                 .or(get_config_spec.boxed())
+                .or(get_config_deposit_contract.boxed())
                 .boxed(),
         )
         .or(warp::post().and(
