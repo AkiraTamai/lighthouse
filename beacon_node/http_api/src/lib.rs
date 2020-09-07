@@ -357,7 +357,7 @@ pub fn serve<T: BeaconChainTypes>(
                                 .map_err(crate::reject::beacon_chain_error)?
                                 // Ignore any skip-slots immediately following the parent.
                                 .find(|res| {
-                                    res.as_ref().map_or(false, |(root, _)| *root == parent_root)
+                                    res.as_ref().map_or(false, |(root, _)| *root != parent_root)
                                 })
                                 .transpose()
                                 .map_err(crate::reject::beacon_chain_error)?
