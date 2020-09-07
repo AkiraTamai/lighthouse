@@ -93,7 +93,7 @@ pub async fn handle_rejection(err: warp::Rejection) -> Result<impl warp::Reply, 
     } else if let Some(e) = err.find::<crate::reject::ObjectInvalid>() {
         code = StatusCode::BAD_REQUEST;
         message = format!("BAD_REQUEST: Invalid object: {}", e.0);
-    } else if let Some(_) = err.find::<warp::reject::MethodNotAllowed>() {
+    } else if err.find::<warp::reject::MethodNotAllowed>().is_some() {
         code = StatusCode::METHOD_NOT_ALLOWED;
         message = "METHOD_NOT_ALLOWED".to_string();
     } else {
@@ -103,7 +103,7 @@ pub async fn handle_rejection(err: warp::Rejection) -> Result<impl warp::Reply, 
 
     let json = warp::reply::json(&ErrorMessage {
         code: code.as_u16(),
-        message: message.to_string(),
+        message,
         stacktraces: vec![],
     });
 

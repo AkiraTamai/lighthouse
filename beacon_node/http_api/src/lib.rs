@@ -57,7 +57,7 @@ pub fn serve<T: BeaconChainTypes>(
     let config = ctx.config.clone();
     let log = ctx.log.clone();
 
-    if config.enabled == false {
+    if !config.enabled {
         crit!(log, "Cannot start disabled HTTP server");
         panic!("a disabled server should not be started");
     }
@@ -236,7 +236,7 @@ pub fn serve<T: BeaconChainTypes>(
                                         validator: validator.clone(),
                                     })
                                 })
-                                .ok_or_else(|| warp::reject::not_found())
+                                .ok_or_else(warp::reject::not_found)
                         })
                         .map(api_types::GenericResponse::from)
                 })
@@ -314,7 +314,7 @@ pub fn serve<T: BeaconChainTypes>(
                                     slot,
                                     validators: committee
                                         .committee
-                                        .into_iter()
+                                        .iter()
                                         .map(|i| *i as u64)
                                         .collect(),
                                 });
@@ -356,10 +356,9 @@ pub fn serve<T: BeaconChainTypes>(
                                 .forwards_iter_block_roots(parent.slot())
                                 .map_err(crate::reject::beacon_chain_error)?
                                 // Ignore any skip-slots immediately following the parent.
-                                .skip_while(|res| {
+                                .find(|res| {
                                     res.as_ref().map_or(false, |(root, _)| *root == parent_root)
                                 })
-                                .next()
                                 .transpose()
                                 .map_err(crate::reject::beacon_chain_error)?
                                 .ok_or_else(|| {
@@ -708,7 +707,7 @@ pub fn serve<T: BeaconChainTypes>(
         .and(warp::path("voluntary_exits"))
         .and(warp::path::end())
         .and(warp::body::json())
-        .and(network_tx_filter.clone())
+        .and(network_tx_filter)
         .and_then(
             |chain: Arc<BeaconChain<T>>,
              exit: SignedVoluntaryExit,
@@ -830,7 +829,7 @@ pub fn serve<T: BeaconChainTypes>(
         .and(warp::path("beacon"))
         .and(warp::path("heads"))
         .and(warp::path::end())
-        .and(chain_filter.clone())
+        .and(chain_filter)
         .and_then(|chain: Arc<BeaconChain<T>>| {
             blocking_json_task(move || {
                 let heads = chain

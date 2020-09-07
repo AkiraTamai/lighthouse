@@ -552,11 +552,9 @@ async fn ok_or_error(response: Response) -> Result<Response, Error> {
 
     if status == StatusCode::OK {
         Ok(response)
+    } else if let Ok(message) = response.json().await {
+        Err(Error::ServerMessage(message))
     } else {
-        if let Some(message) = response.json().await.ok() {
-            Err(Error::ServerMessage(message))
-        } else {
-            Err(Error::StatusCode(status))
-        }
+        Err(Error::StatusCode(status))
     }
 }

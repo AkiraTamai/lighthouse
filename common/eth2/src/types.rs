@@ -252,18 +252,16 @@ impl ValidatorStatus {
                 } else {
                     ValidatorStatus::Active
                 }
-            } else {
-                if validator.activation_epoch < far_future_epoch {
-                    ValidatorStatus::StandbyForActive(validator.activation_epoch)
-                } else if validator.activation_eligibility_epoch < far_future_epoch {
-                    if finalized_epoch < validator.activation_eligibility_epoch {
-                        ValidatorStatus::WaitingForFinality
-                    } else {
-                        ValidatorStatus::WaitingInQueue
-                    }
+            } else if validator.activation_epoch < far_future_epoch {
+                ValidatorStatus::StandbyForActive(validator.activation_epoch)
+            } else if validator.activation_eligibility_epoch < far_future_epoch {
+                if finalized_epoch < validator.activation_eligibility_epoch {
+                    ValidatorStatus::WaitingForFinality
                 } else {
-                    ValidatorStatus::WaitingForEligibility
+                    ValidatorStatus::WaitingInQueue
                 }
+            } else {
+                ValidatorStatus::WaitingForEligibility
             }
         } else {
             ValidatorStatus::Unknown

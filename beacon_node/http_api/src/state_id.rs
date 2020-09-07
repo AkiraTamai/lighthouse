@@ -49,7 +49,7 @@ impl StateId {
         &self,
         chain: &BeaconChain<T>,
     ) -> Result<Fork, warp::Rejection> {
-        self.map_state(chain, |state| Ok(state.fork.clone()))
+        self.map_state(chain, |state| Ok(state.fork))
     }
 
     pub fn state<T: BeaconChainTypes>(
@@ -85,11 +85,9 @@ impl StateId {
         F: Fn(&BeaconState<T::EthSpec>) -> Result<U, warp::Rejection>,
     {
         match &self.0 {
-            CoreStateId::Head => {
-                return chain
-                    .with_head(|snapshot| Ok(func(&snapshot.beacon_state)))
-                    .map_err(crate::reject::beacon_chain_error)?
-            }
+            CoreStateId::Head => chain
+                .with_head(|snapshot| Ok(func(&snapshot.beacon_state)))
+                .map_err(crate::reject::beacon_chain_error)?,
             _ => func(&self.state(chain)?),
         }
     }

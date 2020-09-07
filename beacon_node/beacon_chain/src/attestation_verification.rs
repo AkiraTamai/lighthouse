@@ -261,7 +261,7 @@ impl<T: BeaconChainTypes> Clone for VerifiedUnaggregatedAttestation<T> {
         Self {
             attestation: self.attestation.clone(),
             indexed_attestation: self.indexed_attestation.clone(),
-            subnet_id: self.subnet_id.clone(),
+            subnet_id: self.subnet_id,
         }
     }
 }
