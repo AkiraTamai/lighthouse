@@ -1,10 +1,10 @@
-#![cfg(test)]
-
-use crate::interchange::{
+use slashing_protection::interchange::{
     Interchange, InterchangeData, InterchangeFormat, InterchangeMetadata, MinimalInterchangeData,
 };
-use crate::test_utils::pubkey;
-use crate::{InvalidBlock, NotSafe, SlashingDatabase, SUPPORTED_INTERCHANGE_FORMAT_VERSION};
+use slashing_protection::test_utils::pubkey;
+use slashing_protection::{
+    InvalidBlock, NotSafe, SlashingDatabase, SUPPORTED_INTERCHANGE_FORMAT_VERSION,
+};
 use tempfile::tempdir;
 use types::{Epoch, Hash256, Slot};
 

@@ -1,5 +1,3 @@
-#![cfg(test)]
-
 use crate::*;
 use tempfile::{tempdir, TempDir};
 use types::{
@@ -144,5 +142,5 @@ fn roundtrip_database(dir: &TempDir, db: &SlashingDatabase, is_empty: bool) {
         .unwrap();
 
     assert_eq!(exported, reexported);
-    assert_eq!(is_empty, exported.len() == 0);
+    assert_eq!(is_empty, exported.is_empty());
 }
