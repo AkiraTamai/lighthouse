@@ -55,11 +55,11 @@ pub fn cli_app<'a, 'b>() -> App<'a, 'b> {
 }
 
 pub fn cli_run<T: EthSpec>(matches: &ArgMatches<'_>, env: Environment<T>) -> Result<(), String> {
-    // FIXME(sproul): reconcile this with datadir changes
+    // FIXME: reconcile this with datadir changes
     let data_dir = clap_utils::parse_path_with_default_in_home_dir(
         matches,
         "datadir",
-        PathBuf::from(".lighthouse"),
+        PathBuf::from(".lighthouse").join("validators"),
     )?;
     let slashing_protection_db_path = data_dir.join("slashing_protection.sqlite");
 
