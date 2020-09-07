@@ -20,7 +20,7 @@ pub mod u32_hex {
     {
         let mut hex: String = "0x".to_string();
         let bytes = num.to_le_bytes();
-        hex.push_str(&hex::encode(&bytes));
+        hex.push_str(&::hex::encode(&bytes));
 
         serializer.serialize_str(&hex)
     }
@@ -49,7 +49,7 @@ pub mod u8_hex {
         S: Serializer,
     {
         let mut hex: String = "0x".to_string();
-        hex.push_str(&hex::encode(&[*byte]));
+        hex.push_str(&::hex::encode(&[*byte]));
 
         serializer.serialize_str(&hex)
     }
@@ -76,7 +76,7 @@ pub mod fork_bytes_4 {
         S: Serializer,
     {
         let mut hex_string: String = "0x".to_string();
-        hex_string.push_str(&hex::encode(&bytes));
+        hex_string.push_str(&::hex::encode(&bytes));
 
         serializer.serialize_str(&hex_string)
     }
@@ -116,7 +116,7 @@ pub mod graffiti {
         S: Serializer,
     {
         let mut hex_string: String = "0x".to_string();
-        hex_string.push_str(&hex::encode(&bytes));
+        hex_string.push_str(&::hex::encode(&bytes));
 
         serializer.serialize_str(&hex_string)
     }
