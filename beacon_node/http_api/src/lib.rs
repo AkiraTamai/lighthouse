@@ -792,26 +792,13 @@ pub fn serve<T: BeaconChainTypes>(
         .and(warp::path::end())
         .and(chain_filter.clone())
         .and_then(|chain: Arc<BeaconChain<T>>| {
-            blocking_json_task(move || match chain.eth1_chain.as_ref() {
-                Some(eth1) => {
-                    let address = eth1.deposit_contract_address().parse().map_err(|e| {
-                        crate::reject::custom_server_error(format!(
-                            "internal contract address is invalid: {:?}",
-                            e
-                        ))
-                    })?;
-
-                    Ok(api_types::GenericResponse::from(
-                        api_types::DepositContractData {
-                            address,
-                            chain_id: eth1.deposit_contract_chain_id(),
-                        },
-                    ))
-                }
-                // TODO: figure out how to return the real value here.
-                None => Err(crate::reject::custom_not_found(
-                    "node is not syncing the eth1 chain".to_string(),
-                )),
+            blocking_json_task(move || {
+                Ok(api_types::GenericResponse::from(
+                    api_types::DepositContractData {
+                        address: chain.spec.deposit_contract_address,
+                        chain_id: eth1::DEFAULT_NETWORK_ID.into(),
+                    },
+                ))
             })
         });
 

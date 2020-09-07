@@ -295,6 +295,7 @@ pub struct BlockHeaderData {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct DepositContractData {
-    pub chain_id: U256,
+    #[serde(with = "serde_utils::quoted")]
+    pub chain_id: u64,
     pub address: Address,
 }

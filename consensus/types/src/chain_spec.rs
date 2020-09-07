@@ -107,6 +107,7 @@ pub struct ChainSpec {
      */
     pub eth1_follow_distance: u64,
     pub seconds_per_eth1_block: u64,
+    pub deposit_contract_address: Address,
 
     /*
      * Networking
@@ -317,6 +318,9 @@ impl ChainSpec {
              */
             eth1_follow_distance: 1_024,
             seconds_per_eth1_block: 14,
+            deposit_contract_address: "1234567890123456789012345678901234567890"
+                .parse()
+                .expect("chain spec deposit contract address"),
 
             /*
              * Network specific
@@ -517,6 +521,7 @@ pub struct YamlConfig {
     random_subnets_per_validator: u64,
     epochs_per_random_subnet_subscription: u64,
     seconds_per_eth1_block: u64,
+    deposit_contract_address: Address,
 }
 
 impl Default for YamlConfig {
@@ -597,6 +602,7 @@ impl YamlConfig {
             random_subnets_per_validator: spec.random_subnets_per_validator,
             epochs_per_random_subnet_subscription: spec.epochs_per_random_subnet_subscription,
             seconds_per_eth1_block: spec.seconds_per_eth1_block,
+            deposit_contract_address: spec.deposit_contract_address,
         }
     }
 
@@ -671,6 +677,7 @@ impl YamlConfig {
             boot_nodes: chain_spec.boot_nodes.clone(),
             genesis_fork_version: self.genesis_fork_version,
             eth1_follow_distance: self.eth1_follow_distance,
+            deposit_contract_address: self.deposit_contract_address,
             ..*chain_spec
         })
     }

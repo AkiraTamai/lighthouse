@@ -938,6 +938,11 @@ impl ApiTester {
             .unwrap()
             .data;
 
+        let expected = DepositContractData {
+            address: self.chain.spec.deposit_contract_address,
+            chain_id: eth1::DEFAULT_NETWORK_ID.into(),
+        };
+
         assert_eq!(result, expected);
 
         self
@@ -1099,5 +1104,7 @@ async fn config_get() {
         .test_get_config_fork_schedule()
         .await
         .test_get_config_spec()
+        .await
+        .test_get_deposit_contract()
         .await;
 }

@@ -2299,6 +2299,7 @@ version = "0.1.0"
 dependencies = [
  "beacon_chain",
  "environment",
+ "eth1",
  "eth2",
  "eth2_libp2p",
  "hex 0.4.2",
