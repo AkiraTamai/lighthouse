@@ -829,7 +829,7 @@ pub fn serve<T: BeaconChainTypes>(
         .and(warp::path("beacon"))
         .and(warp::path("heads"))
         .and(warp::path::end())
-        .and(chain_filter)
+        .and(chain_filter.clone())
         .and_then(|chain: Arc<BeaconChain<T>>| {
             blocking_json_task(move || {
                 let heads = chain
@@ -840,6 +840,39 @@ pub fn serve<T: BeaconChainTypes>(
                 Ok(api_types::GenericResponse::from(heads))
             })
         });
+
+    /*
+     * validator
+     */
+
+    // GET validator/duties/proposer/{epoch}
+    let beacon_pool_path = eth1_v1
+        .and(warp::path("validator"))
+        .and(warp::path("duties"))
+        .and(warp::path("proposer"))
+        .and(warp::path::param::<Epoch>())
+        .and(warp::path::end())
+        .and(warp::query::<api_types::ValidatorDutiesQuery>())
+        .and(chain_filter)
+        .and_then(
+            |request_epoch: Epoch,
+             query: api_types::ValidatorDutiesQuery,
+             chain: Arc<BeaconChain<T>>| {
+                blocking_json_task(move || {
+                    let request_slot = request_epoch.start_slot(T::EthSpec::slots_per_epoch());
+
+                    let current_slot = chain.slot().map_err(|e| {
+                        crate::reject::custom_server_error(format!(
+                            "chain does not have slot: {:?}",
+                            e
+                        ))
+                    })?;
+                    let current_epoch = current_slot.epoch(T::EthSpec::slots_per_epoch());
+
+                    Ok(())
+                })
+            },
+        );
 
     let routes = warp::get()
         .and(

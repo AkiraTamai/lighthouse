@@ -315,3 +315,20 @@ pub struct ChainHeadData {
     pub slot: Slot,
     pub root: Hash256,
 }
+
+#[derive(Serialize, Deserialize)]
+pub struct ValidatorDutiesQuery {
+    pub index: Option<Vec<u64>>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ValidatorDutiesData {
+    pub pubkey: PublicKeyBytes,
+    #[serde(with = "serde_utils::quoted_u64")]
+    pub committee_index: u64,
+    #[serde(with = "serde_utils::quoted_u64")]
+    pub committee_length: u64,
+    #[serde(with = "serde_utils::quoted_u64")]
+    pub validator_committee_index: u64,
+    pub slot: Slot,
+}
