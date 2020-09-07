@@ -930,7 +930,7 @@ impl ApiTester {
         self
     }
 
-    pub async fn test_get_deposit_contract(self) -> Self {
+    pub async fn test_get_config_deposit_contract(self) -> Self {
         let result = self
             .client
             .get_config_deposit_contract()
@@ -942,6 +942,42 @@ impl ApiTester {
             address: self.chain.spec.deposit_contract_address,
             chain_id: eth1::DEFAULT_NETWORK_ID.into(),
         };
+
+        assert_eq!(result, expected);
+
+        self
+    }
+
+    pub async fn test_get_debug_beacon_states(self) -> Self {
+        for state_id in self.interesting_state_ids() {
+            let result = self
+                .client
+                .get_debug_beacon_states(state_id)
+                .await
+                .unwrap()
+                .map(|res| res.data);
+
+            let mut expected = self.get_state(state_id);
+            expected.as_mut().map(|state| state.drop_all_caches());
+
+            assert_eq!(result, expected, "{:?}", state_id);
+        }
+
+        self
+    }
+
+    pub async fn test_get_debug_beacon_heads(self) -> Self {
+        let result = self
+            .client
+            .get_debug_beacon_heads()
+            .await
+            .unwrap()
+            .data
+            .into_iter()
+            .map(|head| (head.root, head.slot))
+            .collect::<Vec<_>>();
+
+        let expected = self.chain.heads();
 
         assert_eq!(result, expected);
 
@@ -1105,6 +1141,15 @@ async fn config_get() {
         .await
         .test_get_config_spec()
         .await
-        .test_get_deposit_contract()
+        .test_get_config_deposit_contract()
+        .await;
+}
+
+#[tokio::test(core_threads = 2)]
+async fn debug_get() {
+    ApiTester::new()
+        .test_get_debug_beacon_states()
+        .await
+        .test_get_debug_beacon_heads()
         .await;
 }

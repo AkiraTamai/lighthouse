@@ -511,6 +511,38 @@ impl BeaconNodeClient {
 
         self.get(path).await
     }
+
+    /// `GET debug/beacon/states/{state_id}`
+    pub async fn get_debug_beacon_states<T: EthSpec>(
+        &self,
+        state_id: StateId,
+    ) -> Result<Option<GenericResponse<BeaconState<T>>>, Error> {
+        let mut path = self.server.clone();
+
+        path.path_segments_mut()
+            .expect("path is base")
+            .push("debug")
+            .push("beacon")
+            .push("states")
+            .push(&state_id.to_string());
+
+        self.get_opt(path).await
+    }
+
+    /// `GET debug/beacon/heads`
+    pub async fn get_debug_beacon_heads(
+        &self,
+    ) -> Result<GenericResponse<Vec<ChainHeadData>>, Error> {
+        let mut path = self.server.clone();
+
+        path.path_segments_mut()
+            .expect("path is base")
+            .push("debug")
+            .push("beacon")
+            .push("heads");
+
+        self.get(path).await
+    }
 }
 
 /// Returns `Ok(response)` if the response is a `200 OK` response. Otherwise, creates an

@@ -4,8 +4,8 @@ use std::str::FromStr;
 use types::serde_utils;
 
 pub use types::{
-    Address, Attestation, AttesterSlashing, BeaconBlockHeader, Checkpoint, Epoch, EthSpec, Fork,
-    Hash256, ProposerSlashing, PublicKeyBytes, SignatureBytes, SignedBeaconBlock,
+    Address, Attestation, AttesterSlashing, BeaconBlockHeader, BeaconState, Checkpoint, Epoch,
+    EthSpec, Fork, Hash256, ProposerSlashing, PublicKeyBytes, SignatureBytes, SignedBeaconBlock,
     SignedVoluntaryExit, Slot, Validator, YamlConfig, U256,
 };
 
@@ -131,6 +131,18 @@ pub struct GenericResponse<T: Serialize + serde::de::DeserializeOwned> {
 
 impl<T: Serialize + serde::de::DeserializeOwned> From<T> for GenericResponse<T> {
     fn from(data: T) -> Self {
+        Self { data }
+    }
+}
+
+#[derive(Debug, PartialEq, Clone, Serialize)]
+#[serde(bound = "T: Serialize")]
+pub struct GenericResponseRef<'a, T: Serialize> {
+    pub data: &'a T,
+}
+
+impl<'a, T: Serialize> From<&'a T> for GenericResponseRef<'a, T> {
+    fn from(data: &'a T) -> Self {
         Self { data }
     }
 }
@@ -298,4 +310,10 @@ pub struct DepositContractData {
     #[serde(with = "serde_utils::quoted")]
     pub chain_id: u64,
     pub address: Address,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ChainHeadData {
+    pub slot: Slot,
+    pub root: Hash256,
 }

@@ -802,6 +802,46 @@ pub fn serve<T: BeaconChainTypes>(
             })
         });
 
+    /*
+     * debug
+     */
+
+    // GET debug/beacon/states/{state_id}
+    let get_debug_beacon_states = eth1_v1
+        .and(warp::path("debug"))
+        .and(warp::path("beacon"))
+        .and(warp::path("states"))
+        .and(warp::path::param::<StateId>())
+        .and(warp::path::end())
+        .and(chain_filter.clone())
+        .and_then(|state_id: StateId, chain: Arc<BeaconChain<T>>| {
+            blocking_task(move || {
+                state_id.map_state(&chain, |state| {
+                    Ok(warp::reply::json(&api_types::GenericResponseRef::from(
+                        &state,
+                    )))
+                })
+            })
+        });
+
+    // GET debug/beacon/heads
+    let get_debug_beacon_heads = eth1_v1
+        .and(warp::path("debug"))
+        .and(warp::path("beacon"))
+        .and(warp::path("heads"))
+        .and(warp::path::end())
+        .and(chain_filter.clone())
+        .and_then(|chain: Arc<BeaconChain<T>>| {
+            blocking_json_task(move || {
+                let heads = chain
+                    .heads()
+                    .into_iter()
+                    .map(|(root, slot)| api_types::ChainHeadData { root, slot })
+                    .collect::<Vec<_>>();
+                Ok(api_types::GenericResponse::from(heads))
+            })
+        });
+
     let routes = warp::get()
         .and(
             get_beacon_genesis
@@ -823,6 +863,8 @@ pub fn serve<T: BeaconChainTypes>(
                 .or(get_config_fork_schedule.boxed())
                 .or(get_config_spec.boxed())
                 .or(get_config_deposit_contract.boxed())
+                .or(get_debug_beacon_states.boxed())
+                .or(get_debug_beacon_heads.boxed())
                 .boxed(),
         )
         .or(warp::post().and(
