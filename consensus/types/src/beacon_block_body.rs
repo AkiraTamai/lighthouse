@@ -1,3 +1,4 @@
+use crate::serde_utils::Graffiti;
 use crate::test_utils::TestRandom;
 use crate::*;
 

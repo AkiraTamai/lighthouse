@@ -348,6 +348,7 @@ dependencies = [
  "rand 0.7.3",
  "rand_core 0.5.1",
  "rayon",
+ "regex",
  "safe_arith",
  "serde",
  "serde_derive",
@@ -4820,6 +4821,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "serde_hex"
+version = "0.2.0"
+dependencies = [
+ "hex 0.4.2",
+ "serde",
+]
+
+[[package]]
 name = "serde_json"
 version = "1.0.57"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4855,10 +4864,12 @@ dependencies = [
 
 [[package]]
 name = "serde_utils"
-version = "0.2.0"
+version = "0.1.0"
 dependencies = [
  "hex 0.4.2",
  "serde",
+ "serde_derive",
+ "serde_json",
 ]
 
 [[package]]
@@ -6130,6 +6141,7 @@ dependencies = [
  "serde",
  "serde_derive",
  "serde_json",
+ "serde_utils",
  "serde_yaml",
  "slog",
  "swap_or_not_shuffle",

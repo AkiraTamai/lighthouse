@@ -236,8 +236,8 @@ pub fn get_config<E: EthSpec>(
 
     client_config.eth1.deposit_contract_address =
         format!("{:?}", eth2_testnet_config.deposit_contract_address()?);
-    if client_config.eth1.deposit_contract_address != spec.deposit_contract_address {
-        return Error("Testnet contract address does not match spec".into());
+    if client_config.eth1.deposit_contract_address != spec.deposit_contract_address.to_string() {
+        return Err("Testnet contract address does not match spec".into());
     }
 
     client_config.eth1.deposit_contract_deploy_block =

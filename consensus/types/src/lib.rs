@@ -35,12 +35,12 @@ pub mod pending_attestation;
 pub mod proposer_slashing;
 pub mod relative_epoch;
 pub mod selection_proof;
+pub mod serde_utils;
 pub mod signed_aggregate_and_proof;
 pub mod signed_beacon_block;
 pub mod signed_beacon_block_header;
 pub mod signed_voluntary_exit;
 pub mod signing_data;
-pub mod utils;
 pub mod validator;
 pub mod voluntary_exit;
 #[macro_use]
@@ -53,8 +53,6 @@ mod tree_hash_impls;
 pub mod sqlite;
 
 use ethereum_types::{H160, H256};
-
-pub use ethereum_types::U256;
 
 pub use crate::aggregate_and_proof::AggregateAndProof;
 pub use crate::attestation::{Attestation, Error as AttestationError};
@@ -97,8 +95,8 @@ pub type Hash256 = H256;
 pub type Address = H160;
 pub type ForkVersion = [u8; 4];
 
+pub use crate::serde_utils::{Graffiti, GRAFFITI_BYTES_LEN};
 pub use bls::{
     AggregateSignature, Keypair, PublicKey, PublicKeyBytes, SecretKey, Signature, SignatureBytes,
 };
 pub use ssz_types::{typenum, typenum::Unsigned, BitList, BitVector, FixedVector, VariableList};
-pub use utils::serde_utils::{self, Graffiti, GRAFFITI_BYTES_LEN};

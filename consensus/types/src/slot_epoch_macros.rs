@@ -277,30 +277,6 @@ macro_rules! impl_hash {
     };
 }
 
-macro_rules! impl_serde {
-    ($type: ident) => {
-        impl serde::Serialize for $type {
-            fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-            where
-                S: serde::Serializer,
-            {
-                serializer.serialize_str(&format!("{}", self.0))
-            }
-        }
-
-        impl<'de> serde::Deserialize<'de> for $type {
-            fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-            where
-                D: serde::de::Deserializer<'de>,
-            {
-                deserializer
-                    .deserialize_any(crate::serde_utils::quoted::QuotedIntVisitor)
-                    .map($type::from)
-            }
-        }
-    };
-}
-
 macro_rules! impl_from_str {
     ($type: ident) => {
         impl std::str::FromStr for $type {
@@ -324,7 +300,6 @@ macro_rules! impl_common {
         impl_debug!($type);
         impl_ssz!($type);
         impl_hash!($type);
-        impl_serde!($type);
         impl_from_str!($type);
     };
 }

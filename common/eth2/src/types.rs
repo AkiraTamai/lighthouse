@@ -6,7 +6,7 @@ use types::serde_utils;
 pub use types::{
     Address, Attestation, AttesterSlashing, BeaconBlockHeader, BeaconState, Checkpoint, Epoch,
     EthSpec, Fork, Hash256, ProposerSlashing, PublicKeyBytes, SignatureBytes, SignedBeaconBlock,
-    SignedVoluntaryExit, Slot, Validator, YamlConfig, U256,
+    SignedVoluntaryExit, Slot, Validator, YamlConfig,
 };
 
 /// An API error serializable to JSON.
@@ -20,7 +20,7 @@ pub struct ErrorMessage {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct GenesisData {
-    #[serde(with = "serde_utils::quoted")]
+    #[serde(with = "serde_utils::quoted_u64")]
     pub genesis_time: u64,
     pub genesis_validators_root: Hash256,
     #[serde(with = "serde_utils::fork_bytes_4")]
@@ -198,9 +198,9 @@ impl fmt::Display for ValidatorId {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ValidatorData {
-    #[serde(with = "serde_utils::quoted")]
+    #[serde(with = "serde_utils::quoted_u64")]
     pub index: u64,
-    #[serde(with = "serde_utils::quoted")]
+    #[serde(with = "serde_utils::quoted_u64")]
     pub balance: u64,
     pub status: ValidatorStatus,
     pub validator: Validator,
@@ -279,7 +279,7 @@ pub struct CommitteesQuery {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CommitteeData {
-    #[serde(with = "serde_utils::quoted")]
+    #[serde(with = "serde_utils::quoted_u64")]
     pub index: u64,
     pub slot: Slot,
     #[serde(with = "serde_utils::quoted_u64_vec")]
@@ -307,7 +307,7 @@ pub struct BlockHeaderData {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct DepositContractData {
-    #[serde(with = "serde_utils::quoted")]
+    #[serde(with = "serde_utils::quoted_u64")]
     pub chain_id: u64,
     pub address: Address,
 }
