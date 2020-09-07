@@ -157,6 +157,7 @@ where
     T: EthSpec,
 {
     // Versioning
+    #[serde(with = "crate::serde_utils::quoted_u64")]
     pub genesis_time: u64,
     pub genesis_validators_root: Hash256,
     pub slot: Slot,
@@ -173,6 +174,7 @@ where
     // Ethereum 1.0 chain data
     pub eth1_data: Eth1Data,
     pub eth1_data_votes: VariableList<Eth1Data, T::SlotsPerEth1VotingPeriod>,
+    #[serde(with = "crate::serde_utils::quoted_u64")]
     pub eth1_deposit_index: u64,
 
     // Registry
