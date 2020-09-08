@@ -317,7 +317,7 @@ pub struct ChainHeadData {
     pub root: Hash256,
 }
 
-#[derive(Clone, Deserialize)]
+#[derive(Clone, PartialEq, Debug, Deserialize)]
 #[serde(try_from = "String", bound = "T: FromStr")]
 pub struct QueryVec<T: FromStr>(pub Vec<T>);
 
@@ -325,6 +325,10 @@ impl<T: FromStr> TryFrom<String> for QueryVec<T> {
     type Error = String;
 
     fn try_from(string: String) -> Result<Self, Self::Error> {
+        if string == "" {
+            return Ok(Self(vec![]));
+        }
+
         string
             .split(",")
             .map(|s| s.parse().map_err(|_| "unable to parse".to_string()))
@@ -362,6 +366,9 @@ mod tests {
 
     #[test]
     fn query_vec() {
-        assert_eq!("0,1,2".parse::<QueryVec<u64>>().unwrap().0, vec![0, 1, 3]);
+        assert_eq!(
+            QueryVec::try_from("0,1,2".to_string()).unwrap(),
+            QueryVec(vec![0_u64, 1, 2])
+        );
     }
 }

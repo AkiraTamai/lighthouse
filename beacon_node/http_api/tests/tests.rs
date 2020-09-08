@@ -1020,6 +1020,20 @@ impl ApiTester {
             for indices in self.interesting_validator_indices() {
                 let epoch = Epoch::from(epoch);
 
+                // The endpoint does not allow getting duties older than the previous epoch.
+                if epoch + 1 < current_epoch {
+                    assert_eq!(
+                        self.client
+                            .get_validator_duties_attester(epoch, Some(&indices))
+                            .await
+                            .unwrap_err()
+                            .status()
+                            .map(Into::into),
+                        Some(400)
+                    );
+                    continue;
+                }
+
                 let results = self
                     .client
                     .get_validator_duties_attester(epoch, Some(&indices))

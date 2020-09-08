@@ -15,7 +15,7 @@ pub enum Error {
 }
 
 impl Error {
-    fn status(&self) -> Option<StatusCode> {
+    pub fn status(&self) -> Option<StatusCode> {
         match self {
             Error::Reqwest(error) => error.status(),
             Error::ServerMessage(msg) => StatusCode::try_from(msg.code).ok(),

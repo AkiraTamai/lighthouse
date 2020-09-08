@@ -857,6 +857,16 @@ pub fn serve<T: BeaconChainTypes>(
         .and_then(
             |epoch: Epoch, query: api_types::ValidatorDutiesQuery, chain: Arc<BeaconChain<T>>| {
                 blocking_json_task(move || {
+                    let current_epoch = chain.epoch().map_err(crate::reject::beacon_chain_error)?;
+
+                    // Taking advantage of saturating addition on epoch.
+                    if epoch + 1 < current_epoch {
+                        return Err(crate::reject::custom_bad_request(format!(
+                            "request epoch {} is more than one epoch prior to current epoch {}",
+                            epoch, current_epoch
+                        )));
+                    }
+
                     let indices = query
                         .index
                         .clone()
