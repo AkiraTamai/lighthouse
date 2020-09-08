@@ -350,6 +350,7 @@ mod test_compute_deltas {
         let finalized_desc = Hash256::from_low_u64_be(2);
         let not_finalized_desc = Hash256::from_low_u64_be(3);
         let unknown = Hash256::from_low_u64_be(4);
+        let shuffling_id = ShufflingId::from_components(Epoch::new(0), Hash256::zero());
 
         let mut fc = ProtoArrayForkChoice::new(
             genesis_slot,
@@ -368,6 +369,8 @@ mod test_compute_deltas {
                 parent_root: Some(finalized_root),
                 state_root,
                 target_root: finalized_root,
+                current_epoch_shuffling_id: shuffling_id.clone(),
+                next_epoch_shuffling_id: shuffling_id.clone(),
                 justified_epoch: genesis_epoch,
                 finalized_epoch: genesis_epoch,
             })
@@ -381,6 +384,8 @@ mod test_compute_deltas {
                 parent_root: None,
                 state_root,
                 target_root: finalized_root,
+                current_epoch_shuffling_id: shuffling_id.clone(),
+                next_epoch_shuffling_id: shuffling_id.clone(),
                 justified_epoch: genesis_epoch,
                 finalized_epoch: genesis_epoch,
             })
