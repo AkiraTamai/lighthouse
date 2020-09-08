@@ -12,6 +12,15 @@ pub fn beacon_chain_error(e: beacon_chain::BeaconChainError) -> warp::reject::Re
 }
 
 #[derive(Debug)]
+pub struct BlockProductionError(pub beacon_chain::BlockProductionError);
+
+impl Reject for BlockProductionError {}
+
+pub fn block_production_error(e: beacon_chain::BlockProductionError) -> warp::reject::Rejection {
+    warp::reject::custom(BlockProductionError(e))
+}
+
+#[derive(Debug)]
 pub struct CustomNotFound(pub String);
 
 impl Reject for CustomNotFound {}
@@ -72,6 +81,9 @@ pub async fn handle_rejection(err: warp::Rejection) -> Result<impl warp::Reply, 
         code = StatusCode::BAD_REQUEST;
         message = format!("BAD_REQUEST (invalid query): {}", e);
     } else if let Some(e) = err.find::<crate::reject::BeaconChainError>() {
+        code = StatusCode::INTERNAL_SERVER_ERROR;
+        message = format!("UNHANDLED_ERROR: {:?}", e.0);
+    } else if let Some(e) = err.find::<crate::reject::BlockProductionError>() {
         code = StatusCode::INTERNAL_SERVER_ERROR;
         message = format!("UNHANDLED_ERROR: {:?}", e.0);
     } else if let Some(e) = err.find::<crate::reject::CustomNotFound>() {

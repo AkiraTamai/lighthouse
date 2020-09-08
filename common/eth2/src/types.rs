@@ -7,7 +7,7 @@ use types::serde_utils;
 pub use types::{
     Address, Attestation, AttesterSlashing, BeaconBlockHeader, BeaconState, Checkpoint, Epoch,
     EthSpec, Fork, Hash256, ProposerSlashing, PublicKeyBytes, SignatureBytes, SignedBeaconBlock,
-    SignedVoluntaryExit, Slot, Validator, YamlConfig,
+    SignedVoluntaryExit, Slot, Validator, YamlConfig, GRAFFITI_BYTES_LEN,
 };
 
 /// An API error serializable to JSON.
@@ -358,6 +358,22 @@ pub struct ValidatorDutiesData {
     #[serde(with = "serde_utils::quoted_u64")]
     pub validator_committee_index: u64,
     pub slot: Slot,
+}
+
+#[derive(Clone, Copy, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct Graffiti(#[serde(with = "serde_utils::graffiti")] pub [u8; GRAFFITI_BYTES_LEN]);
+
+impl Into<[u8; GRAFFITI_BYTES_LEN]> for Graffiti {
+    fn into(self) -> [u8; GRAFFITI_BYTES_LEN] {
+        self.0
+    }
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+pub struct ValidatorBlocksQuery {
+    pub randao_reveal: SignatureBytes,
+    pub graffiti: Option<Graffiti>,
 }
 
 #[cfg(test)]

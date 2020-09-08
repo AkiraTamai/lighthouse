@@ -769,7 +769,7 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
             .map_err(Into::into)
     }
 
-    /// Returns the attestation slot and committee index for a given validator index.
+    /// Returns the attestation duties for a given validator index.
     ///
     /// Information is read from the current state, so only information from the present and prior
     /// epoch is available.

@@ -13,13 +13,14 @@ use serde::{Deserialize, Serialize};
 use slog::{crit, error, info, Logger};
 use state_id::StateId;
 use std::borrow::Cow;
+use std::convert::TryInto;
 use std::future::Future;
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
 use std::sync::Arc;
 use tokio::sync::mpsc::UnboundedSender;
 use types::{
     Attestation, AttesterSlashing, CommitteeCache, Epoch, EthSpec, ProposerSlashing, RelativeEpoch,
-    SignedBeaconBlock, SignedVoluntaryExit, YamlConfig,
+    SignedBeaconBlock, SignedVoluntaryExit, Slot, YamlConfig,
 };
 use warp::Filter;
 
@@ -853,7 +854,7 @@ pub fn serve<T: BeaconChainTypes>(
         .and(warp::path::param::<Epoch>())
         .and(warp::path::end())
         .and(warp::query::<api_types::ValidatorDutiesQuery>())
-        .and(chain_filter)
+        .and(chain_filter.clone())
         .and_then(
             |epoch: Epoch, query: api_types::ValidatorDutiesQuery, chain: Arc<BeaconChain<T>>| {
                 blocking_json_task(move || {
@@ -910,6 +911,32 @@ pub fn serve<T: BeaconChainTypes>(
             },
         );
 
+    // GET validator/blocks/{slot}
+    let get_validator_blocks = eth1_v1
+        .and(warp::path("validator"))
+        .and(warp::path("blocks"))
+        .and(warp::path::param::<Slot>())
+        .and(warp::path::end())
+        .and(warp::query::<api_types::ValidatorBlocksQuery>())
+        .and(chain_filter)
+        .and_then(
+            |slot: Slot, query: api_types::ValidatorBlocksQuery, chain: Arc<BeaconChain<T>>| {
+                blocking_json_task(move || {
+                    let randao_reveal = (&query.randao_reveal).try_into().map_err(|e| {
+                        crate::reject::custom_bad_request(format!(
+                            "randao reveal is not valid BLS signature: {:?}",
+                            e
+                        ))
+                    })?;
+
+                    chain
+                        .produce_block(randao_reveal, slot, query.graffiti.map(Into::into))
+                        .map(api_types::GenericResponse::from)
+                        .map_err(crate::reject::block_production_error)
+                })
+            },
+        );
+
     let routes = warp::get()
         .and(
             get_beacon_genesis
@@ -934,6 +961,7 @@ pub fn serve<T: BeaconChainTypes>(
                 .or(get_debug_beacon_states.boxed())
                 .or(get_debug_beacon_heads.boxed())
                 .or(get_validator_duties_attester.boxed())
+                .or(get_validator_blocks.boxed())
                 .boxed(),
         )
         .or(warp::post().and(
