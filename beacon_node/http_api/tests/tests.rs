@@ -3,7 +3,7 @@ use beacon_chain::{
         AttestationStrategy, BeaconChainHarness, BlockStrategy,
         BlockingMigratorEphemeralHarnessType,
     },
-    BeaconChain,
+    BeaconChain, StateSkipConfig,
 };
 use environment::null_logger;
 use eth2::{types::*, BeaconNodeClient, Url};
@@ -983,6 +983,106 @@ impl ApiTester {
 
         self
     }
+
+    fn validator_count(&self) -> usize {
+        self.chain.head().unwrap().beacon_state.validators.len()
+    }
+
+    fn interesting_validator_indices(&self) -> Vec<Vec<u64>> {
+        let validator_count = self.validator_count() as u64;
+
+        let mut interesting = vec![
+            vec![],
+            vec![0],
+            vec![0, 1],
+            vec![0, 1, 3],
+            vec![validator_count],
+            vec![validator_count, 1],
+            vec![validator_count, 1, 3],
+            vec![u64::max_value()],
+            vec![u64::max_value(), 1],
+            vec![u64::max_value(), 1, 3],
+        ];
+
+        interesting.push((0..validator_count).collect());
+
+        interesting
+    }
+
+    pub async fn test_get_validator_duties_attester(self) -> Self {
+        let current_epoch = self.chain.epoch().unwrap().as_u64();
+
+        let half = current_epoch / 2;
+        let first = current_epoch - half;
+        let last = current_epoch + half;
+
+        for epoch in first..=last {
+            for indices in self.interesting_validator_indices() {
+                let epoch = Epoch::from(epoch);
+
+                let results = self
+                    .client
+                    .get_validator_duties_attester(epoch, Some(&indices))
+                    .await
+                    .unwrap()
+                    .data;
+
+                let mut state = self
+                    .chain
+                    .state_at_slot(
+                        epoch.start_slot(E::slots_per_epoch()),
+                        StateSkipConfig::WithStateRoots,
+                    )
+                    .unwrap();
+                state
+                    .build_committee_cache(RelativeEpoch::Current, &self.chain.spec)
+                    .unwrap();
+
+                let expected_len = indices
+                    .iter()
+                    .filter(|i| **i < state.validators.len() as u64)
+                    .count();
+
+                assert_eq!(results.len(), expected_len);
+
+                for (indices_set, &i) in indices.iter().enumerate() {
+                    if let Some(duty) = state
+                        .get_attestation_duties(i as usize, RelativeEpoch::Current)
+                        .unwrap()
+                    {
+                        let expected = ValidatorDutiesData {
+                            pubkey: state.validators[i as usize].pubkey.clone().into(),
+                            validator_index: i,
+                            committee_index: duty.index,
+                            committee_length: duty.committee_len as u64,
+                            validator_committee_index: duty.committee_position as u64,
+                            slot: duty.slot,
+                        };
+
+                        let result = results
+                            .iter()
+                            .find(|duty| duty.validator_index == i)
+                            .unwrap();
+
+                        assert_eq!(
+                            *result, expected,
+                            "epoch: {}, indices_set: {}",
+                            epoch, indices_set
+                        );
+                    } else {
+                        assert!(
+                            !results.iter().any(|duty| duty.validator_index == i),
+                            "validator index should not exist in response"
+                        );
+                    }
+                }
+            }
+        }
+
+        // TODO: check empty query param.
+
+        self
+    }
 }
 
 #[tokio::test(core_threads = 2)]
@@ -1152,4 +1252,9 @@ async fn debug_get() {
         .await
         .test_get_debug_beacon_heads()
         .await;
+}
+
+#[tokio::test(core_threads = 2)]
+async fn get_validator_duties_attester() {
+    ApiTester::new().test_get_validator_duties_attester().await;
 }
