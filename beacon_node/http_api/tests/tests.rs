@@ -14,8 +14,8 @@ use std::sync::Arc;
 use tokio::sync::mpsc;
 use tokio::sync::oneshot;
 use types::{
-    test_utils::generate_deterministic_keypairs, BeaconState, EthSpec, Hash256, MainnetEthSpec,
-    RelativeEpoch, Slot,
+    test_utils::generate_deterministic_keypairs, BeaconState, EthSpec, Hash256, Keypair,
+    MainnetEthSpec, RelativeEpoch, Slot,
 };
 
 type E = MainnetEthSpec;
@@ -45,6 +45,7 @@ struct ApiTester {
     proposer_slashing: ProposerSlashing,
     voluntary_exit: SignedVoluntaryExit,
     _server_shutdown: oneshot::Sender<()>,
+    validator_keypairs: Vec<Keypair>,
     network_rx: mpsc::UnboundedReceiver<NetworkMessage<E>>,
 }
 
@@ -164,6 +165,7 @@ impl ApiTester {
             proposer_slashing,
             voluntary_exit,
             _server_shutdown: shutdown_tx,
+            validator_keypairs: harness.validators_keypairs,
             network_rx,
         }
     }
@@ -1096,6 +1098,10 @@ impl ApiTester {
         // TODO: check empty query param.
 
         self
+    }
+
+    pub async fn test_get_validator_block(self) -> Self {
+        todo!()
     }
 }
 

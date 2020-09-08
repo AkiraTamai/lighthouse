@@ -5,9 +5,9 @@ use std::str::FromStr;
 use types::serde_utils;
 
 pub use types::{
-    Address, Attestation, AttesterSlashing, BeaconBlockHeader, BeaconState, Checkpoint, Epoch,
-    EthSpec, Fork, Hash256, ProposerSlashing, PublicKeyBytes, SignatureBytes, SignedBeaconBlock,
-    SignedVoluntaryExit, Slot, Validator, YamlConfig, GRAFFITI_BYTES_LEN,
+    Address, Attestation, AttesterSlashing, BeaconBlock, BeaconBlockHeader, BeaconState,
+    Checkpoint, Epoch, EthSpec, Fork, Hash256, ProposerSlashing, PublicKeyBytes, SignatureBytes,
+    SignedBeaconBlock, SignedVoluntaryExit, Slot, Validator, YamlConfig, GRAFFITI_BYTES_LEN,
 };
 
 /// An API error serializable to JSON.
@@ -363,6 +363,12 @@ pub struct ValidatorDutiesData {
 #[derive(Clone, Copy, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct Graffiti(#[serde(with = "serde_utils::graffiti")] pub [u8; GRAFFITI_BYTES_LEN]);
+
+impl fmt::Display for Graffiti {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", serde_utils::hex::encode(&self.0))
+    }
+}
 
 impl Into<[u8; GRAFFITI_BYTES_LEN]> for Graffiti {
     fn into(self) -> [u8; GRAFFITI_BYTES_LEN] {

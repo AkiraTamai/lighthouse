@@ -574,6 +574,36 @@ impl BeaconNodeClient {
 
         self.get(path).await
     }
+
+    /// `GET validator/duties/attester/{epoch}?index`
+    ///
+    /// ## Note
+    ///
+    /// The `index` query parameter accepts a list of validator indices.
+    pub async fn get_validator_blocks<T: EthSpec>(
+        &self,
+        slot: Slot,
+        randao_reveal: SignatureBytes,
+        graffiti: Option<&Graffiti>,
+    ) -> Result<GenericResponse<Vec<BeaconBlock<T>>>, Error> {
+        let mut path = self.server.clone();
+
+        path.path_segments_mut()
+            .expect("path is base")
+            .push("validator")
+            .push("blocks")
+            .push(&slot.to_string());
+
+        path.query_pairs_mut()
+            .append_pair("randao_reveal", &randao_reveal.to_string());
+
+        if let Some(graffiti) = graffiti {
+            path.query_pairs_mut()
+                .append_pair("graffiti", &graffiti.to_string());
+        }
+
+        self.get(path).await
+    }
 }
 
 /// Returns `Ok(response)` if the response is a `200 OK` response. Otherwise, creates an
