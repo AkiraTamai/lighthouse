@@ -131,7 +131,7 @@ impl<E: EthSpec> BeaconChainHarness<BlockingMigratorEphemeralHarnessType<E>> {
 
         let decorator = slog_term::PlainDecorator::new(slog_term::TestStdoutWriter);
         let drain = slog_term::FullFormat::new(decorator).build();
-        let debug_level = slog::LevelFilter::new(drain, slog::Level::Debug);
+        let debug_level = slog::LevelFilter::new(drain, slog::Level::Critical);
         let log = slog::Logger::root(std::sync::Mutex::new(debug_level).fuse(), o!());
 
         let config = StoreConfig::default();
@@ -195,7 +195,7 @@ impl<E: EthSpec> BeaconChainHarness<NullMigratorEphemeralHarnessType<E>> {
 
         let decorator = slog_term::PlainDecorator::new(slog_term::TestStdoutWriter);
         let drain = slog_term::FullFormat::new(decorator).build();
-        let debug_level = slog::LevelFilter::new(drain, slog::Level::Debug);
+        let debug_level = slog::LevelFilter::new(drain, slog::Level::Critical);
         let log = slog::Logger::root(std::sync::Mutex::new(debug_level).fuse(), o!());
 
         let store = HotColdDB::open_ephemeral(config, spec.clone(), log.clone()).unwrap();
@@ -240,7 +240,7 @@ impl<E: EthSpec> BeaconChainHarness<BlockingMigratorDiskHarnessType<E>> {
 
         let decorator = slog_term::PlainDecorator::new(slog_term::TestStdoutWriter);
         let drain = slog_term::FullFormat::new(decorator).build();
-        let debug_level = slog::LevelFilter::new(drain, slog::Level::Debug);
+        let debug_level = slog::LevelFilter::new(drain, slog::Level::Critical);
         let log = slog::Logger::root(std::sync::Mutex::new(debug_level).fuse(), o!());
 
         let chain = BeaconChainBuilder::new(eth_spec_instance)
