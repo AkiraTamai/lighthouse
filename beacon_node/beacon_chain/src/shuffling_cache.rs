@@ -1,6 +1,6 @@
 use crate::metrics;
 use lru::LruCache;
-use types::{beacon_state::CommitteeCache, ShufflingId};
+use types::{beacon_state::CommitteeCache, Epoch, ShufflingId};
 
 /// The size of the LRU cache that stores committee caches for quicker verification.
 ///
@@ -43,6 +43,25 @@ impl ShufflingCache {
     pub fn insert(&mut self, key: ShufflingId, committee_cache: &CommitteeCache) {
         if !self.cache.contains(&key) {
             self.cache.put(key, committee_cache.clone());
+        }
+    }
+}
+
+pub struct BlockShufflingIds {
+    pub current: ShufflingId,
+    pub next: ShufflingId,
+}
+
+impl BlockShufflingIds {
+    pub fn id_for_epoch(&self, epoch: Epoch) -> ShufflingId {
+        if epoch == self.current.shuffling_epoch {
+            self.current.clone()
+        } else if epoch == self.next.shuffling_epoch {
+            self.next.clone()
+        } else {
+            let mut shuffling_id = self.next.clone();
+            shuffling_id.shuffling_epoch = epoch;
+            shuffling_id
         }
     }
 }

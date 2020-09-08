@@ -21,7 +21,7 @@ use crate::observed_block_producers::ObservedBlockProducers;
 use crate::observed_operations::{ObservationOutcome, ObservedOperations};
 use crate::persisted_beacon_chain::PersistedBeaconChain;
 use crate::persisted_fork_choice::PersistedForkChoice;
-use crate::shuffling_cache::ShufflingCache;
+use crate::shuffling_cache::{BlockShufflingIds, ShufflingCache};
 use crate::snapshot_cache::SnapshotCache;
 use crate::timeout_rw_lock::TimeoutRwLock;
 use crate::validator_pubkey_cache::ValidatorPubkeyCache;
@@ -532,6 +532,13 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         f(&head_lock)
     }
 
+    /// Returns the beacon block root at the head of the canonical chain.
+    ///
+    /// See `Self::head` for more information.
+    pub fn head_beacon_block_root(&self) -> Result<Hash256, Error> {
+        self.with_head(|s| Ok(s.beacon_block_root))
+    }
+
     /// Returns the beacon block at the head of the canonical chain.
     ///
     /// See `Self::head` for more information.
@@ -770,38 +777,12 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         &self,
         validator_index: usize,
         epoch: Epoch,
-    ) -> Result<Option<(Slot, u64)>, Error> {
-        let as_epoch = |slot: Slot| slot.epoch(T::EthSpec::slots_per_epoch());
-        let head_state = &self.head()?.beacon_state;
+    ) -> Result<Option<AttestationDuty>, Error> {
+        let head_block_root = self.head_beacon_block_root()?;
 
-        let mut state = if epoch == as_epoch(head_state.slot) {
-            self.head()?.beacon_state
-        } else {
-            // The block proposer shuffling is not affected by the state roots, so we don't need to
-            // calculate them.
-            self.state_at_slot(
-                epoch.start_slot(T::EthSpec::slots_per_epoch()),
-                StateSkipConfig::WithoutStateRoots,
-            )?
-        };
-
-        state.build_committee_cache(RelativeEpoch::Current, &self.spec)?;
-
-        if as_epoch(state.slot) != epoch {
-            return Err(Error::InvariantViolated(format!(
-                "Epochs in consistent in attestation duties lookup: state: {}, requested: {}",
-                as_epoch(state.slot),
-                epoch
-            )));
-        }
-
-        if let Some(attestation_duty) =
-            state.get_attestation_duties(validator_index, RelativeEpoch::Current)?
-        {
-            Ok(Some((attestation_duty.slot, attestation_duty.index)))
-        } else {
-            Ok(None)
-        }
+        self.with_committee_cache(head_block_root, epoch, |committee_cache| {
+            Ok(committee_cache.get_attestation_duties(validator_index))
+        })
     }
 
     /// Returns an aggregated `Attestation`, if any, that has a matching `attestation.data`.
@@ -2028,6 +2009,124 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         });
 
         Ok(())
+    }
+
+    /// Runs the `map_fn` with the committee cache at `shuffling_epoch` if the head of the chain is
+    /// `head_block_root`.
+    ///
+    /// It's not necessary that `head_block_root` matches our current view of the chain, it can be
+    /// any block that is:
+    ///
+    /// - Known to us.
+    /// - The finalized block a descendant of it.
+    ///
+    /// It would be quite common for attestation verification operations to use a `head_block_root`
+    /// that differs from our view of the head.
+    ///
+    /// ## Important
+    ///
+    /// This function is **not** suitable for determining proposer duties.
+    ///
+    /// ## Notes
+    ///
+    /// This function exists in this odd "map" pattern because efficiently obtaining a committee
+    /// can be complex. It might involve reading straight from the `beacon_chain.shuffling_cache`
+    /// or it might involve reading it from a state from the DB. Due to the complexities of
+    /// `RwLock`s on the shuffling cache, a simple `Cow` isn't suitable here.
+    ///
+    /// If the committee for `(head_block_root, shuffling_epoch)` isn't found in the
+    /// `shuffling_cache`, we will read a state from disk and then update the `shuffling_cache`.
+    pub(crate) fn with_committee_cache<'a, F, R>(
+        &self,
+        head_block_root: Hash256,
+        shuffling_epoch: Epoch,
+        map_fn: F,
+    ) -> Result<R, Error>
+    where
+        F: Fn(&CommitteeCache) -> Result<R, Error>,
+    {
+        let head_block = self
+            .fork_choice
+            .read()
+            .get_block(&head_block_root)
+            .ok_or_else(|| Error::MissingBeaconBlock(head_block_root))?;
+
+        let shuffling_id = BlockShufflingIds {
+            current: head_block.current_epoch_shuffling_id.clone(),
+            next: head_block.next_epoch_shuffling_id.clone(),
+        }
+        .id_for_epoch(shuffling_epoch);
+
+        // Obtain the shuffling cache, timing how long we wait.
+        let cache_wait_timer =
+            metrics::start_timer(&metrics::ATTESTATION_PROCESSING_SHUFFLING_CACHE_WAIT_TIMES);
+
+        let mut shuffling_cache = self
+            .shuffling_cache
+            .try_write_for(ATTESTATION_CACHE_LOCK_TIMEOUT)
+            .ok_or_else(|| Error::AttestationCacheLockTimeout)?;
+
+        metrics::stop_timer(cache_wait_timer);
+
+        if let Some(committee_cache) = shuffling_cache.get(&shuffling_id) {
+            map_fn(committee_cache)
+        } else {
+            // Drop the shuffling cache to avoid holding the lock for any longer than
+            // required.
+            drop(shuffling_cache);
+
+            debug!(
+                self.log,
+                "Committee cache miss";
+                "shuffling_epoch" => shuffling_epoch.as_u64(),
+                "head_block_root" => head_block_root.to_string(),
+            );
+
+            let state_read_timer =
+                metrics::start_timer(&metrics::ATTESTATION_PROCESSING_STATE_READ_TIMES);
+
+            let mut state = self
+                .store
+                .get_inconsistent_state_for_attestation_verification_only(
+                    &head_block.state_root,
+                    Some(head_block.slot),
+                )?
+                .ok_or_else(|| Error::MissingBeaconState(head_block.state_root))?;
+
+            metrics::stop_timer(state_read_timer);
+            let state_skip_timer =
+                metrics::start_timer(&metrics::ATTESTATION_PROCESSING_STATE_SKIP_TIMES);
+
+            while state.current_epoch() + 1 < shuffling_epoch {
+                // Here we tell `per_slot_processing` to skip hashing the state and just
+                // use the zero hash instead.
+                //
+                // The state roots are not useful for the shuffling, so there's no need to
+                // compute them.
+                per_slot_processing(&mut state, Some(Hash256::zero()), &self.spec)
+                    .map_err(Error::from)?;
+            }
+
+            metrics::stop_timer(state_skip_timer);
+            let committee_building_timer =
+                metrics::start_timer(&metrics::ATTESTATION_PROCESSING_COMMITTEE_BUILDING_TIMES);
+
+            let relative_epoch = RelativeEpoch::from_epoch(state.current_epoch(), shuffling_epoch)
+                .map_err(Error::IncorrectStateForAttestation)?;
+
+            state.build_committee_cache(relative_epoch, &self.spec)?;
+
+            let committee_cache = state.committee_cache(relative_epoch)?;
+
+            self.shuffling_cache
+                .try_write_for(ATTESTATION_CACHE_LOCK_TIMEOUT)
+                .ok_or_else(|| Error::AttestationCacheLockTimeout)?
+                .insert(shuffling_id, committee_cache);
+
+            metrics::stop_timer(committee_building_timer);
+
+            map_fn(&committee_cache)
+        }
     }
 
     /// Returns `true` if the given block root has not been processed.

@@ -28,8 +28,7 @@
 
 use crate::{
     beacon_chain::{
-        ATTESTATION_CACHE_LOCK_TIMEOUT, HEAD_LOCK_TIMEOUT, MAXIMUM_GOSSIP_CLOCK_DISPARITY,
-        VALIDATOR_PUBKEY_CACHE_LOCK_TIMEOUT,
+        HEAD_LOCK_TIMEOUT, MAXIMUM_GOSSIP_CLOCK_DISPARITY, VALIDATOR_PUBKEY_CACHE_LOCK_TIMEOUT,
     },
     metrics,
     observed_attestations::ObserveOutcome,
@@ -37,12 +36,10 @@ use crate::{
     BeaconChain, BeaconChainError, BeaconChainTypes,
 };
 use bls::verify_signature_sets;
-use slog::debug;
 use slot_clock::SlotClock;
 use state_processing::{
     common::get_indexed_attestation,
     per_block_processing::errors::AttestationValidationError,
-    per_slot_processing,
     signature_sets::{
         indexed_attestation_signature_set_from_pubkeys,
         signed_aggregate_selection_proof_signature_set, signed_aggregate_signature_set,
@@ -52,7 +49,7 @@ use std::borrow::Cow;
 use tree_hash::TreeHash;
 use types::{
     Attestation, BeaconCommittee, CommitteeIndex, Epoch, EthSpec, Hash256, IndexedAttestation,
-    RelativeEpoch, SelectionProof, ShufflingId, SignedAggregateAndProof, Slot, SubnetId,
+    SelectionProof, SignedAggregateAndProof, Slot, SubnetId,
 };
 
 /// Returned when an attestation was not successfully verified. It might not have been verified for
@@ -336,7 +333,7 @@ impl<T: BeaconChainTypes> VerifiedAggregatedAttestation<T> {
         //
         // Attestations must be for a known block. If the block is unknown, we simply drop the
         // attestation and do not delay consideration for later.
-        let shuffling_ids = verify_head_block_is_known(chain, &attestation, None)?;
+        verify_head_block_is_known(chain, &attestation, None)?;
 
         // Ensure that the attestation has participants.
         if attestation.aggregation_bits.is_zero() {
@@ -344,7 +341,7 @@ impl<T: BeaconChainTypes> VerifiedAggregatedAttestation<T> {
         }
 
         let indexed_attestation =
-            map_attestation_committee(chain, attestation, &shuffling_ids, |(committee, _)| {
+            map_attestation_committee(chain, attestation, |(committee, _)| {
                 // Note: this clones the signature which is known to be a relatively slow operation.
                 //
                 // Future optimizations should remove this clone.
@@ -444,15 +441,10 @@ impl<T: BeaconChainTypes> VerifiedUnaggregatedAttestation<T> {
         // attestation and do not delay consideration for later.
         //
         // Enforce a maximum skip distance for unaggregated attestations.
-        let shuffling_ids =
-            verify_head_block_is_known(chain, &attestation, chain.config.import_max_skip_slots)?;
+        verify_head_block_is_known(chain, &attestation, chain.config.import_max_skip_slots)?;
 
         let (indexed_attestation, committees_per_slot) =
-            obtain_indexed_attestation_and_committees_per_slot(
-                chain,
-                &attestation,
-                &shuffling_ids,
-            )?;
+            obtain_indexed_attestation_and_committees_per_slot(chain, &attestation)?;
 
         let expected_subnet_id = SubnetId::compute_subnet_for_attestation_data::<T::EthSpec>(
             &indexed_attestation.data,
@@ -557,7 +549,7 @@ fn verify_head_block_is_known<T: BeaconChainTypes>(
     chain: &BeaconChain<T>,
     attestation: &Attestation<T::EthSpec>,
     max_skip_slots: Option<u64>,
-) -> Result<BlockShufflingIds, Error> {
+) -> Result<(), Error> {
     if let Some(block) = chain
         .fork_choice
         .read()
@@ -573,10 +565,7 @@ fn verify_head_block_is_known<T: BeaconChainTypes>(
             }
         }
 
-        Ok(BlockShufflingIds {
-            current: block.current_epoch_shuffling_id,
-            next: block.next_epoch_shuffling_id,
-        })
+        Ok(())
     } else {
         Err(Error::UnknownHeadBlock {
             beacon_block_root: attestation.data.beacon_block_root,
@@ -729,42 +718,17 @@ pub fn verify_signed_aggregate_signatures<T: BeaconChainTypes>(
 /// Assists in readability.
 type CommitteesPerSlot = u64;
 
-struct BlockShufflingIds {
-    current: ShufflingId,
-    next: ShufflingId,
-}
-
-impl BlockShufflingIds {
-    fn id_for_epoch(&self, epoch: Epoch) -> ShufflingId {
-        if epoch == self.current.shuffling_epoch {
-            self.current.clone()
-        } else if epoch == self.next.shuffling_epoch {
-            self.next.clone()
-        } else {
-            let mut shuffling_id = self.next.clone();
-            shuffling_id.shuffling_epoch = epoch;
-            shuffling_id
-        }
-    }
-}
-
 /// Returns the `indexed_attestation` and committee count per slot for the `attestation` using the
 /// public keys cached in the `chain`.
 fn obtain_indexed_attestation_and_committees_per_slot<T: BeaconChainTypes>(
     chain: &BeaconChain<T>,
     attestation: &Attestation<T::EthSpec>,
-    block_shuffling_ids: &BlockShufflingIds,
 ) -> Result<(IndexedAttestation<T::EthSpec>, CommitteesPerSlot), Error> {
-    map_attestation_committee(
-        chain,
-        attestation,
-        block_shuffling_ids,
-        |(committee, committees_per_slot)| {
-            get_indexed_attestation(committee.committee, &attestation)
-                .map(|attestation| (attestation, committees_per_slot))
-                .map_err(|e| BeaconChainError::from(e).into())
-        },
-    )
+    map_attestation_committee(chain, attestation, |(committee, committees_per_slot)| {
+        get_indexed_attestation(committee.committee, &attestation)
+            .map(|attestation| (attestation, committees_per_slot))
+            .map_err(|e| BeaconChainError::from(e).into())
+    })
 }
 
 /// Runs the `map_fn` with the committee and committee count per slot for the given `attestation`.
@@ -779,7 +743,6 @@ fn obtain_indexed_attestation_and_committees_per_slot<T: BeaconChainTypes>(
 fn map_attestation_committee<'a, T, F, R>(
     chain: &'a BeaconChain<T>,
     attestation: &Attestation<T::EthSpec>,
-    block_shuffling_ids: &BlockShufflingIds,
     map_fn: F,
 ) -> Result<R, Error>
 where
@@ -788,7 +751,6 @@ where
 {
     let attestation_epoch = attestation.data.slot.epoch(T::EthSpec::slots_per_epoch());
     let target = &attestation.data.target;
-    let shuffling_id = block_shuffling_ids.id_for_epoch(target.epoch);
 
     // Attestation target must be for a known block.
     //
@@ -797,104 +759,23 @@ where
     // processing an attestation that does not include our latest finalized block in its chain.
     //
     // We do not delay consideration for later, we simply drop the attestation.
-    let target_block = chain
-        .fork_choice
-        .read()
-        .get_block(&target.root)
-        .ok_or_else(|| Error::UnknownTargetRoot(target.root))?;
-
-    // Obtain the shuffling cache, timing how long we wait.
-    let cache_wait_timer =
-        metrics::start_timer(&metrics::ATTESTATION_PROCESSING_SHUFFLING_CACHE_WAIT_TIMES);
-
-    let mut shuffling_cache = chain
-        .shuffling_cache
-        .try_write_for(ATTESTATION_CACHE_LOCK_TIMEOUT)
-        .ok_or_else(|| BeaconChainError::AttestationCacheLockTimeout)?;
-
-    metrics::stop_timer(cache_wait_timer);
-
-    if let Some(committee_cache) = shuffling_cache.get(&shuffling_id) {
-        let committees_per_slot = committee_cache.committees_per_slot();
-        committee_cache
-            .get_beacon_committee(attestation.data.slot, attestation.data.index)
-            .map(|committee| map_fn((committee, committees_per_slot)))
-            .unwrap_or_else(|| {
-                Err(Error::NoCommitteeForSlotAndIndex {
-                    slot: attestation.data.slot,
-                    index: attestation.data.index,
-                })
-            })
-    } else {
-        // Drop the shuffling cache to avoid holding the lock for any longer than
-        // required.
-        drop(shuffling_cache);
-
-        debug!(
-            chain.log,
-            "Attestation processing cache miss";
-            "attn_epoch" => attestation_epoch.as_u64(),
-            "target_block_epoch" => target_block.slot.epoch(T::EthSpec::slots_per_epoch()).as_u64(),
-        );
-
-        let state_read_timer =
-            metrics::start_timer(&metrics::ATTESTATION_PROCESSING_STATE_READ_TIMES);
-
-        let mut state = chain
-            .store
-            .get_inconsistent_state_for_attestation_verification_only(
-                &target_block.state_root,
-                Some(target_block.slot),
-            )
-            .map_err(BeaconChainError::from)?
-            .ok_or_else(|| BeaconChainError::MissingBeaconState(target_block.state_root))?;
-
-        metrics::stop_timer(state_read_timer);
-        let state_skip_timer =
-            metrics::start_timer(&metrics::ATTESTATION_PROCESSING_STATE_SKIP_TIMES);
-
-        while state.current_epoch() + 1 < attestation_epoch {
-            // Here we tell `per_slot_processing` to skip hashing the state and just
-            // use the zero hash instead.
-            //
-            // The state roots are not useful for the shuffling, so there's no need to
-            // compute them.
-            per_slot_processing(&mut state, Some(Hash256::zero()), &chain.spec)
-                .map_err(BeaconChainError::from)?;
-        }
-
-        metrics::stop_timer(state_skip_timer);
-        let committee_building_timer =
-            metrics::start_timer(&metrics::ATTESTATION_PROCESSING_COMMITTEE_BUILDING_TIMES);
-
-        let relative_epoch = RelativeEpoch::from_epoch(state.current_epoch(), attestation_epoch)
-            .map_err(BeaconChainError::IncorrectStateForAttestation)?;
-
-        state
-            .build_committee_cache(relative_epoch, &chain.spec)
-            .map_err(BeaconChainError::from)?;
-
-        let committee_cache = state
-            .committee_cache(relative_epoch)
-            .map_err(BeaconChainError::from)?;
-
-        chain
-            .shuffling_cache
-            .try_write_for(ATTESTATION_CACHE_LOCK_TIMEOUT)
-            .ok_or_else(|| BeaconChainError::AttestationCacheLockTimeout)?
-            .insert(shuffling_id, committee_cache);
-
-        metrics::stop_timer(committee_building_timer);
-
-        let committees_per_slot = committee_cache.committees_per_slot();
-        committee_cache
-            .get_beacon_committee(attestation.data.slot, attestation.data.index)
-            .map(|committee| map_fn((committee, committees_per_slot)))
-            .unwrap_or_else(|| {
-                Err(Error::NoCommitteeForSlotAndIndex {
-                    slot: attestation.data.slot,
-                    index: attestation.data.index,
-                })
-            })
+    if !chain.fork_choice.read().contains_block(&target.root) {
+        return Err(Error::UnknownTargetRoot(target.root));
     }
+
+    chain
+        .with_committee_cache(target.root, attestation_epoch, |committee_cache| {
+            let committees_per_slot = committee_cache.committees_per_slot();
+
+            Ok(committee_cache
+                .get_beacon_committee(attestation.data.slot, attestation.data.index)
+                .map(|committee| map_fn((committee, committees_per_slot)))
+                .unwrap_or_else(|| {
+                    Err(Error::NoCommitteeForSlotAndIndex {
+                        slot: attestation.data.slot,
+                        index: attestation.data.index,
+                    })
+                }))
+        })
+        .map_err(BeaconChainError::from)?
 }
