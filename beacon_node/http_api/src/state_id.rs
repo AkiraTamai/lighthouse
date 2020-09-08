@@ -1,17 +1,13 @@
 use beacon_chain::{BeaconChain, BeaconChainTypes};
 use eth2::types::StateId as CoreStateId;
 use std::str::FromStr;
-use types::{BeaconState, EthSpec, Fork, Hash256, Slot};
+use types::{BeaconState, EthSpec, Fork, Hash256};
 
 pub struct StateId(CoreStateId);
 
 impl StateId {
     pub fn head() -> Self {
         Self(CoreStateId::Head)
-    }
-
-    pub fn slot(slot: Slot) -> Self {
-        Self(CoreStateId::Slot(slot))
     }
 
     pub fn root<T: BeaconChainTypes>(

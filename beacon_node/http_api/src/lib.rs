@@ -845,31 +845,57 @@ pub fn serve<T: BeaconChainTypes>(
      * validator
      */
 
-    // GET validator/duties/proposer/{epoch}
-    let beacon_pool_path = eth1_v1
+    // GET validator/duties/attester/{epoch}
+    let get_validator_duties_attester = eth1_v1
         .and(warp::path("validator"))
         .and(warp::path("duties"))
-        .and(warp::path("proposer"))
+        .and(warp::path("attester"))
         .and(warp::path::param::<Epoch>())
         .and(warp::path::end())
         .and(warp::query::<api_types::ValidatorDutiesQuery>())
         .and(chain_filter)
         .and_then(
-            |request_epoch: Epoch,
-             query: api_types::ValidatorDutiesQuery,
-             chain: Arc<BeaconChain<T>>| {
+            |epoch: Epoch, query: api_types::ValidatorDutiesQuery, chain: Arc<BeaconChain<T>>| {
                 blocking_json_task(move || {
-                    let request_slot = request_epoch.start_slot(T::EthSpec::slots_per_epoch());
+                    let indices = query
+                        .index
+                        .clone()
+                        .map(|index| Ok::<_, warp::Rejection>(index.0))
+                        .unwrap_or_else(|| {
+                            let validator_count = StateId::head()
+                                .map_state(&chain, |state| Ok(state.validators.len() as u64))?;
+                            Ok((0..validator_count).collect())
+                        })?;
 
-                    let current_slot = chain.slot().map_err(|e| {
-                        crate::reject::custom_server_error(format!(
-                            "chain does not have slot: {:?}",
-                            e
-                        ))
-                    })?;
-                    let current_epoch = current_slot.epoch(T::EthSpec::slots_per_epoch());
+                    let duties = indices
+                        .into_iter()
+                        // Exclude indices which do not represent a known public key and a
+                        // validator duty.
+                        .filter_map(|i| {
+                            Some((
+                                i,
+                                chain.validator_pubkey(i as usize).transpose()?,
+                                chain
+                                    .validator_attestation_duty(i as usize, epoch)
+                                    .transpose()?,
+                            ))
+                        })
+                        .map(|(validator_index, pubkey_res, duty_res)| {
+                            let pubkey = pubkey_res.map_err(crate::reject::beacon_chain_error)?;
+                            let duty = duty_res.map_err(crate::reject::beacon_chain_error)?;
 
-                    Ok(())
+                            Ok(api_types::ValidatorDutiesData {
+                                pubkey: pubkey.into(),
+                                validator_index,
+                                committee_index: duty.index,
+                                committee_length: duty.committee_len as u64,
+                                validator_committee_index: duty.committee_position as u64,
+                                slot: duty.slot,
+                            })
+                        })
+                        .collect::<Result<Vec<_>, warp::Rejection>>()?;
+
+                    Ok(api_types::GenericResponse::from(duties))
                 })
             },
         );
@@ -897,6 +923,7 @@ pub fn serve<T: BeaconChainTypes>(
                 .or(get_config_deposit_contract.boxed())
                 .or(get_debug_beacon_states.boxed())
                 .or(get_debug_beacon_heads.boxed())
+                .or(get_validator_duties_attester.boxed())
                 .boxed(),
         )
         .or(warp::post().and(

@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::convert::TryFrom;
 use std::fmt;
 use std::str::FromStr;
 use types::serde_utils;
@@ -316,14 +317,36 @@ pub struct ChainHeadData {
     pub root: Hash256,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Deserialize)]
+#[serde(try_from = "String", bound = "T: FromStr")]
+pub struct QueryVec<T: FromStr>(pub Vec<T>);
+
+impl<T: FromStr> TryFrom<String> for QueryVec<T> {
+    type Error = String;
+
+    fn try_from(string: String) -> Result<Self, Self::Error> {
+        string
+            .split(",")
+            .map(|s| s.parse().map_err(|_| "unable to parse".to_string()))
+            .collect::<Result<Vec<T>, String>>()
+            .map(Self)
+    }
+}
+
+#[derive(Clone, Deserialize)]
 pub struct ValidatorDutiesQuery {
-    pub index: Option<Vec<u64>>,
+    pub index: Option<QueryVec<u64>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ValidatorDutiesData {
     pub pubkey: PublicKeyBytes,
+    /// Note: this field did not exist in the API spec at the time of writing, however I have made
+    /// a PR to have it included:
+    ///
+    /// https://github.com/ethereum/eth2.0-APIs/pull/78
+    #[serde(with = "serde_utils::quoted_u64")]
+    pub validator_index: u64,
     #[serde(with = "serde_utils::quoted_u64")]
     pub committee_index: u64,
     #[serde(with = "serde_utils::quoted_u64")]
@@ -331,4 +354,14 @@ pub struct ValidatorDutiesData {
     #[serde(with = "serde_utils::quoted_u64")]
     pub validator_committee_index: u64,
     pub slot: Slot,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn query_vec() {
+        assert_eq!("0,1,2".parse::<QueryVec<u64>>().unwrap().0, vec![0, 1, 3]);
+    }
 }

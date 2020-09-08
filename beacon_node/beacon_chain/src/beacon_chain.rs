@@ -773,7 +773,7 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
     ///
     /// Information is read from the current state, so only information from the present and prior
     /// epoch is available.
-    pub fn validator_attestation_slot_and_index(
+    pub fn validator_attestation_duty(
         &self,
         validator_index: usize,
         epoch: Epoch,
