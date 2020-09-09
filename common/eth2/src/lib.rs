@@ -553,7 +553,7 @@ impl BeaconNodeClient {
         &self,
         epoch: Epoch,
         index: Option<&[u64]>,
-    ) -> Result<GenericResponse<Vec<ValidatorDutiesData>>, Error> {
+    ) -> Result<GenericResponse<Vec<AttesterData>>, Error> {
         let mut path = self.server.clone();
 
         path.path_segments_mut()
@@ -571,6 +571,23 @@ impl BeaconNodeClient {
                 .join(",");
             path.query_pairs_mut().append_pair("index", &string);
         }
+
+        self.get(path).await
+    }
+
+    /// `GET validator/duties/proposer/{epoch}`
+    pub async fn get_validator_duties_proposer(
+        &self,
+        epoch: Epoch,
+    ) -> Result<GenericResponse<Vec<ProposerData>>, Error> {
+        let mut path = self.server.clone();
+
+        path.path_segments_mut()
+            .expect("path is base")
+            .push("validator")
+            .push("duties")
+            .push("proposer")
+            .push(&epoch.to_string());
 
         self.get(path).await
     }

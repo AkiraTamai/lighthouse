@@ -1066,7 +1066,7 @@ impl ApiTester {
                         .get_attestation_duties(i as usize, RelativeEpoch::Current)
                         .unwrap()
                     {
-                        let expected = ValidatorDutiesData {
+                        let expected = AttesterData {
                             pubkey: state.validators[i as usize].pubkey.clone().into(),
                             validator_index: i,
                             committee_index: duty.index,
@@ -1100,7 +1100,39 @@ impl ApiTester {
         self
     }
 
-    pub async fn test_get_validator_block(self) -> Self {
+    pub async fn test_get_validator_duties_proposer(self) -> Self {
+        let current_epoch = self.chain.epoch().unwrap();
+
+        let result = self
+            .client
+            .get_validator_duties_proposer(current_epoch)
+            .await
+            .unwrap()
+            .data;
+
+        let mut state = self.chain.head_beacon_state().unwrap();
+        state
+            .build_committee_cache(RelativeEpoch::Current, &self.chain.spec)
+            .unwrap();
+
+        let expected = current_epoch
+            .slot_iter(E::slots_per_epoch())
+            .map(|slot| {
+                let index = state
+                    .get_beacon_proposer_index(slot, &self.chain.spec)
+                    .unwrap();
+                let pubkey = state.validators[index].pubkey.clone().into();
+
+                ProposerData { pubkey, slot }
+            })
+            .collect::<Vec<_>>();
+
+        assert_eq!(result, expected);
+
+        self
+    }
+
+    pub async fn test_block_production(self) -> Self {
         todo!()
     }
 }
@@ -1277,4 +1309,9 @@ async fn debug_get() {
 #[tokio::test(core_threads = 2)]
 async fn get_validator_duties_attester() {
     ApiTester::new().test_get_validator_duties_attester().await;
+}
+
+#[tokio::test(core_threads = 2)]
+async fn get_validator_duties_proposer() {
+    ApiTester::new().test_get_validator_duties_proposer().await;
 }

@@ -1,3 +1,4 @@
+mod beacon_proposer_cache;
 mod block_id;
 mod reject;
 mod state_id;
@@ -5,10 +6,12 @@ mod state_id;
 use beacon_chain::{
     observed_operations::ObservationOutcome, BeaconChain, BeaconChainError, BeaconChainTypes,
 };
+use beacon_proposer_cache::BeaconProposerCache;
 use block_id::BlockId;
 use eth2::types::{self as api_types, ValidatorId};
 use eth2_libp2p::PubsubMessage;
 use network::NetworkMessage;
+use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 use slog::{crit, error, info, Logger};
 use state_id::StateId;
@@ -51,19 +54,61 @@ impl Default for Config {
     }
 }
 
+#[derive(Debug)]
+pub enum Error {
+    Warp(warp::Error),
+    Other(String),
+}
+
+impl From<warp::Error> for Error {
+    fn from(e: warp::Error) -> Self {
+        Error::Warp(e)
+    }
+}
+
+impl From<String> for Error {
+    fn from(e: String) -> Self {
+        Error::Other(e)
+    }
+}
+
 pub fn serve<T: BeaconChainTypes>(
     ctx: Arc<Context<T>>,
     shutdown: impl Future<Output = ()> + Send + Sync + 'static,
-) -> Result<(SocketAddr, impl Future<Output = ()>), warp::Error> {
+) -> Result<(SocketAddr, impl Future<Output = ()>), Error> {
     let config = ctx.config.clone();
     let log = ctx.log.clone();
 
     if !config.enabled {
         crit!(log, "Cannot start disabled HTTP server");
-        panic!("a disabled server should not be started");
+        return Err(Error::Other(
+            "A disabled server should not be started".to_string(),
+        ));
     }
 
     let eth1_v1 = warp::path(API_PREFIX).and(warp::path(API_VERSION));
+
+    let beacon_proposer_cache = ctx
+        .chain
+        .as_ref()
+        .map(|chain| BeaconProposerCache::new(&chain))
+        .transpose()
+        .map_err(|e| format!("Unable to initialize beacon proposer cache: {:?}", e))?
+        .map(Mutex::new)
+        .map(Arc::new);
+
+    let beacon_proposer_cache = || {
+        warp::any()
+            .map(move || beacon_proposer_cache.clone())
+            .and_then(|beacon_proposer_cache| async move {
+                match beacon_proposer_cache {
+                    Some(cache) => Ok(cache),
+                    None => Err(crate::reject::custom_not_found(
+                        "Beacon proposer cache is not initialized.".to_string(),
+                    )),
+                }
+            })
+    };
 
     let inner_ctx = ctx.clone();
     let chain_filter =
@@ -895,7 +940,7 @@ pub fn serve<T: BeaconChainTypes>(
                             let pubkey = pubkey_res.map_err(crate::reject::beacon_chain_error)?;
                             let duty = duty_res.map_err(crate::reject::beacon_chain_error)?;
 
-                            Ok(api_types::ValidatorDutiesData {
+                            Ok(api_types::AttesterData {
                                 pubkey: pubkey.into(),
                                 validator_index,
                                 committee_index: duty.index,
@@ -907,6 +952,28 @@ pub fn serve<T: BeaconChainTypes>(
                         .collect::<Result<Vec<_>, warp::Rejection>>()?;
 
                     Ok(api_types::GenericResponse::from(duties))
+                })
+            },
+        );
+
+    // GET validator/duties/proposer/{epoch}
+    let get_validator_duties_proposer = eth1_v1
+        .and(warp::path("validator"))
+        .and(warp::path("duties"))
+        .and(warp::path("proposer"))
+        .and(warp::path::param::<Epoch>())
+        .and(warp::path::end())
+        .and(chain_filter.clone())
+        .and(beacon_proposer_cache())
+        .and_then(
+            |epoch: Epoch,
+             chain: Arc<BeaconChain<T>>,
+             beacon_proposer_cache: Arc<Mutex<BeaconProposerCache>>| {
+                blocking_json_task(move || {
+                    beacon_proposer_cache
+                        .lock()
+                        .get_proposers(&chain, epoch)
+                        .map(api_types::GenericResponse::from)
                 })
             },
         );
@@ -961,6 +1028,7 @@ pub fn serve<T: BeaconChainTypes>(
                 .or(get_debug_beacon_states.boxed())
                 .or(get_debug_beacon_heads.boxed())
                 .or(get_validator_duties_attester.boxed())
+                .or(get_validator_duties_proposer.boxed())
                 .or(get_validator_blocks.boxed())
                 .boxed(),
         )

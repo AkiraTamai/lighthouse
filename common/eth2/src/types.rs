@@ -343,7 +343,7 @@ pub struct ValidatorDutiesQuery {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct ValidatorDutiesData {
+pub struct AttesterData {
     pub pubkey: PublicKeyBytes,
     /// Note: this field did not exist in the API spec at the time of writing, however I have made
     /// a PR to have it included:
@@ -357,6 +357,12 @@ pub struct ValidatorDutiesData {
     pub committee_length: u64,
     #[serde(with = "serde_utils::quoted_u64")]
     pub validator_committee_index: u64,
+    pub slot: Slot,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ProposerData {
+    pub pubkey: PublicKeyBytes,
     pub slot: Slot,
 }
 

@@ -19,6 +19,8 @@ slog = "2.5.2"
 network = { path = "../network" }
 eth2_libp2p = { path = "../eth2_libp2p" }
 eth1 = { path = "../eth1" }
+fork_choice = { path = "../../consensus/fork_choice" }
+state_processing = { path = "../../consensus/state_processing" }
 
 [dev-dependencies]
 store = { path = "../store" }
