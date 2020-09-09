@@ -9,13 +9,14 @@ use environment::null_logger;
 use eth2::{types::*, BeaconNodeClient, Url};
 use http_api::{Config, Context};
 use network::NetworkMessage;
+use std::convert::TryInto;
 use std::net::Ipv4Addr;
 use std::sync::Arc;
 use tokio::sync::mpsc;
 use tokio::sync::oneshot;
 use types::{
-    test_utils::generate_deterministic_keypairs, BeaconState, EthSpec, Hash256, Keypair,
-    MainnetEthSpec, RelativeEpoch, Slot,
+    test_utils::generate_deterministic_keypairs, BeaconState, Domain, EthSpec, Hash256, Keypair,
+    MainnetEthSpec, RelativeEpoch, SignedRoot, Slot,
 };
 
 type E = MainnetEthSpec;
@@ -660,7 +661,7 @@ impl ApiTester {
     }
 
     pub async fn test_post_beacon_blocks_valid(mut self) -> Self {
-        let next_block = self.next_block.clone();
+        let next_block = &self.next_block;
 
         self.client.post_beacon_blocks(next_block).await.unwrap();
 
@@ -676,7 +677,7 @@ impl ApiTester {
         let mut next_block = self.next_block.clone();
         next_block.message.proposer_index += 1;
 
-        assert!(self.client.post_beacon_blocks(next_block).await.is_err());
+        assert!(self.client.post_beacon_blocks(&next_block).await.is_err());
 
         assert!(
             self.network_rx.try_recv().is_ok(),
@@ -1133,7 +1134,60 @@ impl ApiTester {
     }
 
     pub async fn test_block_production(self) -> Self {
-        todo!()
+        let fork = self.chain.head_info().unwrap().fork;
+        let genesis_validators_root = self.chain.genesis_validators_root;
+
+        for _ in 0..E::slots_per_epoch() * 3 {
+            let slot = self.chain.slot().unwrap();
+            let epoch = self.chain.epoch().unwrap();
+
+            let proposer_pubkey_bytes = self
+                .client
+                .get_validator_duties_proposer(epoch)
+                .await
+                .unwrap()
+                .data
+                .into_iter()
+                .find(|duty| duty.slot == slot)
+                .map(|duty| duty.pubkey)
+                .unwrap();
+            let proposer_pubkey = (&proposer_pubkey_bytes).try_into().unwrap();
+
+            let sk = self
+                .validator_keypairs
+                .iter()
+                .find(|kp| kp.pk == proposer_pubkey)
+                .map(|kp| kp.sk.clone())
+                .unwrap();
+
+            let randao_reveal = {
+                let domain = self.chain.spec.get_domain(
+                    epoch,
+                    Domain::Randao,
+                    &fork,
+                    genesis_validators_root,
+                );
+                let message = epoch.signing_root(domain);
+                sk.sign(message).into()
+            };
+
+            let block = self
+                .client
+                .get_validator_blocks::<E>(slot, randao_reveal, None)
+                .await
+                .unwrap()
+                .data;
+
+            let signed_block = block.sign(&sk, &fork, genesis_validators_root, &self.chain.spec);
+
+            self.client.post_beacon_blocks(&signed_block).await.unwrap();
+
+            assert_eq!(self.chain.head_beacon_block().unwrap(), signed_block);
+
+            self.chain.slot_clock.set_slot(slot.as_u64() + 1);
+        }
+
+        self
     }
 }
 
@@ -1314,4 +1368,9 @@ async fn get_validator_duties_attester() {
 #[tokio::test(core_threads = 2)]
 async fn get_validator_duties_proposer() {
     ApiTester::new().test_get_validator_duties_proposer().await;
+}
+
+#[tokio::test(core_threads = 2)]
+async fn block_production() {
+    ApiTester::new().test_block_production().await;
 }

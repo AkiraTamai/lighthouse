@@ -272,7 +272,7 @@ impl BeaconNodeClient {
     /// Returns `Ok(None)` on a 404 error.
     pub async fn post_beacon_blocks<T: EthSpec>(
         &self,
-        block: SignedBeaconBlock<T>,
+        block: &SignedBeaconBlock<T>,
     ) -> Result<(), Error> {
         let mut path = self.server.clone();
 
@@ -281,7 +281,7 @@ impl BeaconNodeClient {
             .push("beacon")
             .push("blocks");
 
-        self.post(path, &block).await?;
+        self.post(path, block).await?;
 
         Ok(())
     }
@@ -602,7 +602,7 @@ impl BeaconNodeClient {
         slot: Slot,
         randao_reveal: SignatureBytes,
         graffiti: Option<&Graffiti>,
-    ) -> Result<GenericResponse<Vec<BeaconBlock<T>>>, Error> {
+    ) -> Result<GenericResponse<BeaconBlock<T>>, Error> {
         let mut path = self.server.clone();
 
         path.path_segments_mut()

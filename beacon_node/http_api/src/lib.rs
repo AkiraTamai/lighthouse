@@ -516,6 +516,13 @@ pub fn serve<T: BeaconChainTypes>(
                                 "Valid block from HTTP API";
                                 "root" => format!("{}", root)
                             );
+
+                            // Update the head since it's likely this block will become the new
+                            // head.
+                            chain
+                                .fork_choice()
+                                .map_err(crate::reject::beacon_chain_error)?;
+
                             Ok(())
                         }
                         Err(e) => {
@@ -998,6 +1005,7 @@ pub fn serve<T: BeaconChainTypes>(
 
                     chain
                         .produce_block(randao_reveal, slot, query.graffiti.map(Into::into))
+                        .map(|block_and_state| block_and_state.0)
                         .map(api_types::GenericResponse::from)
                         .map_err(crate::reject::block_production_error)
                 })
