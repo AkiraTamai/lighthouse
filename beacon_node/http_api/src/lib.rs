@@ -23,7 +23,7 @@ use std::sync::Arc;
 use tokio::sync::mpsc::UnboundedSender;
 use types::{
     Attestation, AttesterSlashing, CommitteeCache, Epoch, EthSpec, ProposerSlashing, RelativeEpoch,
-    SignedBeaconBlock, SignedVoluntaryExit, Slot, YamlConfig,
+    SignedAggregateAndProof, SignedBeaconBlock, SignedVoluntaryExit, Slot, YamlConfig,
 };
 use warp::Filter;
 
@@ -760,7 +760,7 @@ pub fn serve<T: BeaconChainTypes>(
         .and(warp::path("voluntary_exits"))
         .and(warp::path::end())
         .and(warp::body::json())
-        .and(network_tx_filter)
+        .and(network_tx_filter.clone())
         .and_then(
             |chain: Arc<BeaconChain<T>>,
              exit: SignedVoluntaryExit,
@@ -1037,7 +1037,7 @@ pub fn serve<T: BeaconChainTypes>(
         .and(warp::path("aggregate_attestation"))
         .and(warp::path::end())
         .and(warp::query::<api_types::ValidatorAggregateAttestationQuery>())
-        .and(chain_filter)
+        .and(chain_filter.clone())
         .and_then(
             |query: api_types::ValidatorAggregateAttestationQuery, chain: Arc<BeaconChain<T>>| {
                 blocking_json_task(move || {
@@ -1047,6 +1047,56 @@ pub fn serve<T: BeaconChainTypes>(
                             &query.attestation_data_root,
                         )
                         .map(api_types::GenericResponse::from))
+                })
+            },
+        );
+
+    // POST validator/aggregate_and_proofs
+    let post_validator_aggregate_and_proofs = eth1_v1
+        .and(warp::path("validator"))
+        .and(warp::path("aggregate_and_proofs"))
+        .and(warp::path::end())
+        .and(chain_filter)
+        .and(warp::body::json())
+        .and(network_tx_filter.clone())
+        .and_then(
+            |chain: Arc<BeaconChain<T>>,
+             aggregate: SignedAggregateAndProof<T::EthSpec>,
+             network_tx: UnboundedSender<NetworkMessage<T::EthSpec>>| {
+                blocking_json_task(move || {
+                    let aggregate = chain
+                        .verify_aggregated_attestation_for_gossip(aggregate.clone())
+                        .map_err(|e| {
+                            crate::reject::object_invalid(format!(
+                                "gossip verification failed: {:?}",
+                                e
+                            ))
+                        })?;
+
+                    publish_network_message(
+                        &network_tx,
+                        PubsubMessage::AggregateAndProofAttestation(Box::new(
+                            aggregate.aggregate().clone(),
+                        )),
+                    )?;
+
+                    chain
+                        .apply_attestation_to_fork_choice(&aggregate)
+                        .map_err(|e| {
+                            crate::reject::broadcast_without_import(format!(
+                                "not applied to fork choice: {:?}",
+                                e
+                            ))
+                        })?;
+
+                    chain.add_to_block_inclusion_pool(aggregate).map_err(|e| {
+                        crate::reject::broadcast_without_import(format!(
+                            "not applied to block inclusion pool: {:?}",
+                            e
+                        ))
+                    })?;
+
+                    Ok(())
                 })
             },
         );
@@ -1087,6 +1137,7 @@ pub fn serve<T: BeaconChainTypes>(
                 .or(post_beacon_pool_attester_slashings.boxed())
                 .or(post_beacon_pool_proposer_slashings.boxed())
                 .or(post_beacon_pool_voluntary_exits.boxed())
+                .or(post_validator_aggregate_and_proofs.boxed())
                 .boxed(),
         ))
         .recover(crate::reject::handle_rejection);

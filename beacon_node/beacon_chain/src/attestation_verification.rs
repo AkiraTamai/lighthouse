@@ -411,6 +411,11 @@ impl<T: BeaconChainTypes> VerifiedAggregatedAttestation<T> {
     pub fn attestation(&self) -> &Attestation<T::EthSpec> {
         &self.signed_aggregate.message.aggregate
     }
+
+    /// Returns the underlying `signed_aggregate`.
+    pub fn aggregate(&self) -> &SignedAggregateAndProof<T::EthSpec> {
+        &self.signed_aggregate
+    }
 }
 
 impl<T: BeaconChainTypes> VerifiedUnaggregatedAttestation<T> {
