@@ -5,9 +5,10 @@ use std::str::FromStr;
 use types::serde_utils;
 
 pub use types::{
-    Address, Attestation, AttesterSlashing, BeaconBlock, BeaconBlockHeader, BeaconState,
-    Checkpoint, Epoch, EthSpec, Fork, Hash256, ProposerSlashing, PublicKeyBytes, SignatureBytes,
-    SignedBeaconBlock, SignedVoluntaryExit, Slot, Validator, YamlConfig, GRAFFITI_BYTES_LEN,
+    Address, Attestation, AttestationData, AttesterSlashing, BeaconBlock, BeaconBlockHeader,
+    BeaconState, Checkpoint, CommitteeIndex, Epoch, EthSpec, Fork, Hash256, ProposerSlashing,
+    PublicKeyBytes, SignatureBytes, SignedBeaconBlock, SignedVoluntaryExit, Slot, Validator,
+    YamlConfig, GRAFFITI_BYTES_LEN,
 };
 
 /// An API error serializable to JSON.
@@ -352,7 +353,7 @@ pub struct AttesterData {
     #[serde(with = "serde_utils::quoted_u64")]
     pub validator_index: u64,
     #[serde(with = "serde_utils::quoted_u64")]
-    pub committee_index: u64,
+    pub committee_index: CommitteeIndex,
     #[serde(with = "serde_utils::quoted_u64")]
     pub committee_length: u64,
     #[serde(with = "serde_utils::quoted_u64")]
@@ -386,6 +387,18 @@ impl Into<[u8; GRAFFITI_BYTES_LEN]> for Graffiti {
 pub struct ValidatorBlocksQuery {
     pub randao_reveal: SignatureBytes,
     pub graffiti: Option<Graffiti>,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+pub struct ValidatorAttestationDataQuery {
+    pub slot: Slot,
+    pub committee_index: CommitteeIndex,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+pub struct ValidatorAggregateAttestationQuery {
+    pub attestation_data_root: Hash256,
+    pub slot: Slot,
 }
 
 #[cfg(test)]

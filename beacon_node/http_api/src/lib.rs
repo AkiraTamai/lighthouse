@@ -992,7 +992,7 @@ pub fn serve<T: BeaconChainTypes>(
         .and(warp::path::param::<Slot>())
         .and(warp::path::end())
         .and(warp::query::<api_types::ValidatorBlocksQuery>())
-        .and(chain_filter)
+        .and(chain_filter.clone())
         .and_then(
             |slot: Slot, query: api_types::ValidatorBlocksQuery, chain: Arc<BeaconChain<T>>| {
                 blocking_json_task(move || {
@@ -1008,6 +1008,25 @@ pub fn serve<T: BeaconChainTypes>(
                         .map(|block_and_state| block_and_state.0)
                         .map(api_types::GenericResponse::from)
                         .map_err(crate::reject::block_production_error)
+                })
+            },
+        );
+
+    // GET validator/attestation_data?slot,committee_index
+    let get_validator_attestation_data = eth1_v1
+        .and(warp::path("validator"))
+        .and(warp::path("attestation_data"))
+        .and(warp::path::end())
+        .and(warp::query::<api_types::ValidatorAttestationDataQuery>())
+        .and(chain_filter)
+        .and_then(
+            |query: api_types::ValidatorAttestationDataQuery, chain: Arc<BeaconChain<T>>| {
+                blocking_json_task(move || {
+                    chain
+                        .produce_unaggregated_attestation(query.slot, query.committee_index)
+                        .map(|attestation| attestation.data)
+                        .map(api_types::GenericResponse::from)
+                        .map_err(crate::reject::beacon_chain_error)
                 })
             },
         );
@@ -1038,6 +1057,7 @@ pub fn serve<T: BeaconChainTypes>(
                 .or(get_validator_duties_attester.boxed())
                 .or(get_validator_duties_proposer.boxed())
                 .or(get_validator_blocks.boxed())
+                .or(get_validator_attestation_data.boxed())
                 .boxed(),
         )
         .or(warp::post().and(

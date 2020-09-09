@@ -1189,6 +1189,33 @@ impl ApiTester {
 
         self
     }
+
+    pub async fn test_get_validator_attestation_data(self) -> Self {
+        let mut state = self.chain.head_beacon_state().unwrap();
+        let slot = state.slot;
+        state
+            .build_committee_cache(RelativeEpoch::Current, &self.chain.spec)
+            .unwrap();
+
+        for index in 0..state.get_committee_count_at_slot(slot).unwrap() {
+            let result = self
+                .client
+                .get_validator_attestation_data(slot, index)
+                .await
+                .unwrap()
+                .data;
+
+            let expected = self
+                .chain
+                .produce_unaggregated_attestation(slot, index)
+                .unwrap()
+                .data;
+
+            assert_eq!(result, expected);
+        }
+
+        self
+    }
 }
 
 #[tokio::test(core_threads = 2)]
@@ -1373,4 +1400,9 @@ async fn get_validator_duties_proposer() {
 #[tokio::test(core_threads = 2)]
 async fn block_production() {
     ApiTester::new().test_block_production().await;
+}
+
+#[tokio::test(core_threads = 2)]
+async fn get_validator_attestation_data() {
+    ApiTester::new().test_get_validator_attestation_data().await;
 }

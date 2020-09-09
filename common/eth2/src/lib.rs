@@ -621,6 +621,26 @@ impl BeaconNodeClient {
 
         self.get(path).await
     }
+
+    /// `GET validator/attestation_data?slot,committee_index`
+    pub async fn get_validator_attestation_data(
+        &self,
+        slot: Slot,
+        committee_index: CommitteeIndex,
+    ) -> Result<GenericResponse<AttestationData>, Error> {
+        let mut path = self.server.clone();
+
+        path.path_segments_mut()
+            .expect("path is base")
+            .push("validator")
+            .push("attestation_data");
+
+        path.query_pairs_mut()
+            .append_pair("slot", &slot.to_string())
+            .append_pair("committee_index", &committee_index.to_string());
+
+        self.get(path).await
+    }
 }
 
 /// Returns `Ok(response)` if the response is a `200 OK` response. Otherwise, creates an
