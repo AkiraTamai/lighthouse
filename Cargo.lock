@@ -1444,6 +1444,7 @@ version = "0.1.0"
 dependencies = [
  "hex 0.4.2",
  "reqwest",
+ "rest_types",
  "serde",
  "serde_json",
  "types",

@@ -504,7 +504,7 @@ pub fn serve<T: BeaconChainTypes>(
                 blocking_json_task(move || {
                     // Send the block, regardless of whether or not it is valid. The API
                     // specification is very clear that this is the desired behaviour.
-                    publish_network_message(
+                    publish_pubsub_message(
                         &network_tx,
                         PubsubMessage::BeaconBlock(Box::new(block.clone())),
                     )?;
@@ -610,7 +610,7 @@ pub fn serve<T: BeaconChainTypes>(
                             ))
                         })?;
 
-                    publish_network_message(
+                    publish_pubsub_message(
                         &network_tx,
                         PubsubMessage::Attestation(Box::new((
                             attestation.subnet_id(),
@@ -676,7 +676,7 @@ pub fn serve<T: BeaconChainTypes>(
                         })?;
 
                     if let ObservationOutcome::New(slashing) = outcome {
-                        publish_network_message(
+                        publish_pubsub_message(
                             &network_tx,
                             PubsubMessage::AttesterSlashing(Box::new(
                                 slashing.clone().into_inner(),
@@ -727,7 +727,7 @@ pub fn serve<T: BeaconChainTypes>(
                         })?;
 
                     if let ObservationOutcome::New(slashing) = outcome {
-                        publish_network_message(
+                        publish_pubsub_message(
                             &network_tx,
                             PubsubMessage::ProposerSlashing(Box::new(
                                 slashing.clone().into_inner(),
@@ -776,7 +776,7 @@ pub fn serve<T: BeaconChainTypes>(
                         })?;
 
                     if let ObservationOutcome::New(exit) = outcome {
-                        publish_network_message(
+                        publish_pubsub_message(
                             &network_tx,
                             PubsubMessage::VoluntaryExit(Box::new(exit.clone().into_inner())),
                         )?;
@@ -1074,7 +1074,7 @@ pub fn serve<T: BeaconChainTypes>(
                             ))
                         })?;
 
-                    publish_network_message(
+                    publish_pubsub_message(
                         &network_tx,
                         PubsubMessage::AggregateAndProofAttestation(Box::new(
                             aggregate.aggregate().clone(),
@@ -1098,6 +1098,35 @@ pub fn serve<T: BeaconChainTypes>(
                     })?;
 
                     Ok(())
+                })
+            },
+        );
+
+    // POST validator/beacon_committee_subscriptions
+    let post_validator_beacon_committee_subscriptions = eth1_v1
+        .and(warp::path("validator"))
+        .and(warp::path("beacon_committee_subscriptions"))
+        .and(warp::path::end())
+        .and(warp::body::json())
+        .and(network_tx_filter.clone())
+        .and_then(
+            |subscription: api_types::BeaconCommitteeSubscription,
+             network_tx: UnboundedSender<NetworkMessage<T::EthSpec>>| {
+                blocking_json_task(move || {
+                    let subscription = api_types::ValidatorSubscription {
+                        validator_index: subscription.validator_index,
+                        attestation_committee_index: subscription.committee_index,
+                        slot: subscription.slot,
+                        committee_count_at_slot: subscription.committees_at_slot,
+                        is_aggregator: subscription.is_aggregator,
+                    };
+
+                    publish_network_message(
+                        &network_tx,
+                        NetworkMessage::Subscribe {
+                            subscriptions: vec![subscription],
+                        },
+                    )
                 })
             },
         );
@@ -1139,6 +1168,7 @@ pub fn serve<T: BeaconChainTypes>(
                 .or(post_beacon_pool_proposer_slashings.boxed())
                 .or(post_beacon_pool_voluntary_exits.boxed())
                 .or(post_validator_aggregate_and_proofs.boxed())
+                .or(post_validator_beacon_committee_subscriptions.boxed())
                 .boxed(),
         ))
         .recover(crate::reject::handle_rejection);
@@ -1159,20 +1189,25 @@ pub fn serve<T: BeaconChainTypes>(
     Ok((listening_socket, server))
 }
 
-fn publish_network_message<T: EthSpec>(
+fn publish_pubsub_message<T: EthSpec>(
     network_tx: &UnboundedSender<NetworkMessage<T>>,
     message: PubsubMessage<T>,
 ) -> Result<(), warp::Rejection> {
-    network_tx
-        .send(NetworkMessage::Publish {
+    publish_network_message(
+        network_tx,
+        NetworkMessage::Publish {
             messages: vec![message],
-        })
-        .map_err(|e| {
-            crate::reject::custom_server_error(format!(
-                "unable to publish to network channel: {}",
-                e
-            ))
-        })
+        },
+    )
+}
+
+fn publish_network_message<T: EthSpec>(
+    network_tx: &UnboundedSender<NetworkMessage<T>>,
+    message: NetworkMessage<T>,
+) -> Result<(), warp::Rejection> {
+    network_tx.send(message).map_err(|e| {
+        crate::reject::custom_server_error(format!("unable to publish to network channel: {}", e))
+    })
 }
 
 async fn blocking_task<F, T>(func: F) -> T

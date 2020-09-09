@@ -4,11 +4,14 @@ use std::fmt;
 use std::str::FromStr;
 use types::serde_utils;
 
+// TODO: remove this.
+pub use rest_types::ValidatorSubscription;
+
 pub use types::{
     Address, Attestation, AttestationData, AttesterSlashing, BeaconBlock, BeaconBlockHeader,
     BeaconState, Checkpoint, CommitteeIndex, Epoch, EthSpec, Fork, Hash256, ProposerSlashing,
-    PublicKeyBytes, SignatureBytes, SignedBeaconBlock, SignedVoluntaryExit, Slot, Validator,
-    YamlConfig, GRAFFITI_BYTES_LEN,
+    PublicKeyBytes, SignatureBytes, SignedAggregateAndProof, SignedBeaconBlock,
+    SignedVoluntaryExit, Slot, Validator, YamlConfig, GRAFFITI_BYTES_LEN,
 };
 
 /// An API error serializable to JSON.
@@ -346,12 +349,12 @@ pub struct ValidatorDutiesQuery {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct AttesterData {
     pub pubkey: PublicKeyBytes,
+    #[serde(with = "serde_utils::quoted_u64")]
+    pub validator_index: u64,
     /// Note: this field did not exist in the API spec at the time of writing, however I have made
     /// a PR to have it included:
     ///
-    /// https://github.com/ethereum/eth2.0-APIs/pull/78
-    #[serde(with = "serde_utils::quoted_u64")]
-    pub validator_index: u64,
+    /// https://github.com/ethereum/eth2.0-APIs/pull/81
     #[serde(with = "serde_utils::quoted_u64")]
     pub committees_at_slot: u64,
     #[serde(with = "serde_utils::quoted_u64")]
@@ -401,6 +404,22 @@ pub struct ValidatorAttestationDataQuery {
 pub struct ValidatorAggregateAttestationQuery {
     pub attestation_data_root: Hash256,
     pub slot: Slot,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct BeaconCommitteeSubscription {
+    #[serde(with = "serde_utils::quoted_u64")]
+    pub validator_index: u64,
+    #[serde(with = "serde_utils::quoted_u64")]
+    pub committee_index: u64,
+    /// Note: this field did not exist in the API spec at the time of writing, however I have made
+    /// a PR to have it included:
+    ///
+    /// https://github.com/ethereum/eth2.0-APIs/pull/81
+    #[serde(with = "serde_utils::quoted_u64")]
+    pub committees_at_slot: u64,
+    pub slot: Slot,
+    pub is_aggregator: bool,
 }
 
 #[cfg(test)]

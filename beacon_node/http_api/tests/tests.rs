@@ -1246,6 +1246,27 @@ impl ApiTester {
 
         self
     }
+
+    // TODO: test agg and proof
+
+    pub async fn test_get_validator_beacon_committee_subscriptions(mut self) -> Self {
+        let subscription = BeaconCommitteeSubscription {
+            validator_index: 0,
+            committee_index: 0,
+            committees_at_slot: 1,
+            slot: Slot::new(1),
+            is_aggregator: true,
+        };
+
+        self.client
+            .post_validator_beacon_committee_subscriptions(&subscription)
+            .await
+            .unwrap();
+
+        self.network_rx.try_recv().unwrap();
+
+        self
+    }
 }
 
 #[tokio::test(core_threads = 2)]
@@ -1441,5 +1462,12 @@ async fn get_validator_attestation_data() {
 async fn get_validator_aggregate_attestation() {
     ApiTester::new()
         .test_get_validator_aggregate_attestation()
+        .await;
+}
+
+#[tokio::test(core_threads = 2)]
+async fn get_validator_beacon_committee_subscriptions() {
+    ApiTester::new()
+        .test_get_validator_beacon_committee_subscriptions()
         .await;
 }

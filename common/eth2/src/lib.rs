@@ -664,6 +664,40 @@ impl BeaconNodeClient {
 
         self.get_opt(path).await
     }
+
+    /// `POST validator/aggregate_and_proofs`
+    pub async fn post_validator_aggregate_and_proof<T: EthSpec>(
+        &self,
+        aggregate: &SignedAggregateAndProof<T>,
+    ) -> Result<(), Error> {
+        let mut path = self.server.clone();
+
+        path.path_segments_mut()
+            .expect("path is base")
+            .push("validator")
+            .push("aggregate_and_proofs");
+
+        self.post(path, aggregate).await?;
+
+        Ok(())
+    }
+
+    /// `POST validator/beacon_committee_subscriptions`
+    pub async fn post_validator_beacon_committee_subscriptions(
+        &self,
+        subscription: &BeaconCommitteeSubscription,
+    ) -> Result<(), Error> {
+        let mut path = self.server.clone();
+
+        path.path_segments_mut()
+            .expect("path is base")
+            .push("validator")
+            .push("beacon_committee_subscriptions");
+
+        self.post(path, subscription).await?;
+
+        Ok(())
+    }
 }
 
 /// Returns `Ok(response)` if the response is a `200 OK` response. Otherwise, creates an
