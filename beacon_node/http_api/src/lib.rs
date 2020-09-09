@@ -950,6 +950,7 @@ pub fn serve<T: BeaconChainTypes>(
                             Ok(api_types::AttesterData {
                                 pubkey: pubkey.into(),
                                 validator_index,
+                                committees_at_slot: duty.committees_at_slot,
                                 committee_index: duty.index,
                                 committee_length: duty.committee_len as u64,
                                 validator_committee_index: duty.committee_position as u64,

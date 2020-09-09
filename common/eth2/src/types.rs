@@ -353,6 +353,8 @@ pub struct AttesterData {
     #[serde(with = "serde_utils::quoted_u64")]
     pub validator_index: u64,
     #[serde(with = "serde_utils::quoted_u64")]
+    pub committees_at_slot: u64,
+    #[serde(with = "serde_utils::quoted_u64")]
     pub committee_index: CommitteeIndex,
     #[serde(with = "serde_utils::quoted_u64")]
     pub committee_length: u64,

@@ -1071,6 +1071,7 @@ impl ApiTester {
                         let expected = AttesterData {
                             pubkey: state.validators[i as usize].pubkey.clone().into(),
                             validator_index: i,
+                            committees_at_slot: duty.committees_at_slot,
                             committee_index: duty.index,
                             committee_length: duty.committee_len as u64,
                             validator_committee_index: duty.committee_position as u64,

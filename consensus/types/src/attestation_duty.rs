@@ -12,4 +12,6 @@ pub struct AttestationDuty {
     pub committee_position: usize,
     /// The total number of attesters in the committee.
     pub committee_len: usize,
+    /// The committee count at `attestation_slot`.
+    pub committees_at_slot: u64,
 }
