@@ -330,7 +330,7 @@ impl<T: FromStr> TryFrom<String> for QueryVec<T> {
         }
 
         string
-            .split(",")
+            .split(',')
             .map(|s| s.parse().map_err(|_| "unable to parse".to_string()))
             .collect::<Result<Vec<T>, String>>()
             .map(Self)
