@@ -14,6 +14,7 @@ use std::net::Ipv4Addr;
 use std::sync::Arc;
 use tokio::sync::mpsc;
 use tokio::sync::oneshot;
+use tree_hash::TreeHash;
 use types::{
     test_utils::generate_deterministic_keypairs, BeaconState, Domain, EthSpec, Hash256, Keypair,
     MainnetEthSpec, RelativeEpoch, SignedRoot, Slot,
@@ -1216,6 +1217,34 @@ impl ApiTester {
 
         self
     }
+
+    pub async fn test_get_validator_aggregate_attestation(self) -> Self {
+        let attestation = self
+            .chain
+            .head_beacon_block()
+            .unwrap()
+            .message
+            .body
+            .attestations[0]
+            .clone();
+
+        let result = self
+            .client
+            .get_validator_aggregate_attestation(
+                attestation.data.slot,
+                attestation.data.tree_hash_root(),
+            )
+            .await
+            .unwrap()
+            .unwrap()
+            .data;
+
+        let expected = attestation;
+
+        assert_eq!(result, expected);
+
+        self
+    }
 }
 
 #[tokio::test(core_threads = 2)]
@@ -1405,4 +1434,11 @@ async fn block_production() {
 #[tokio::test(core_threads = 2)]
 async fn get_validator_attestation_data() {
     ApiTester::new().test_get_validator_attestation_data().await;
+}
+
+#[tokio::test(core_threads = 2)]
+async fn get_validator_aggregate_attestation() {
+    ApiTester::new()
+        .test_get_validator_aggregate_attestation()
+        .await;
 }

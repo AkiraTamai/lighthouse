@@ -25,3 +25,4 @@ state_processing = { path = "../../consensus/state_processing" }
 [dev-dependencies]
 store = { path = "../store" }
 environment = { path = "../../lighthouse/environment" }
+tree_hash = { path = "../../consensus/tree_hash" }

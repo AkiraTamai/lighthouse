@@ -641,6 +641,29 @@ impl BeaconNodeClient {
 
         self.get(path).await
     }
+
+    /// `GET validator/attestation_data?slot,committee_index`
+    pub async fn get_validator_aggregate_attestation<T: EthSpec>(
+        &self,
+        slot: Slot,
+        attestation_data_root: Hash256,
+    ) -> Result<Option<GenericResponse<Attestation<T>>>, Error> {
+        let mut path = self.server.clone();
+
+        path.path_segments_mut()
+            .expect("path is base")
+            .push("validator")
+            .push("aggregate_attestation");
+
+        path.query_pairs_mut()
+            .append_pair("slot", &slot.to_string())
+            .append_pair(
+                "attestation_data_root",
+                &format!("{:?}", attestation_data_root),
+            );
+
+        self.get_opt(path).await
+    }
 }
 
 /// Returns `Ok(response)` if the response is a `200 OK` response. Otherwise, creates an

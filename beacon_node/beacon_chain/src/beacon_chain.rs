@@ -798,6 +798,20 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
             .map_err(Into::into)
     }
 
+    /// Returns an aggregated `Attestation`, if any, that has a matching
+    /// `attestation.data.tree_hash_root()`.
+    ///
+    /// The attestation will be obtained from `self.naive_aggregation_pool`.
+    pub fn get_aggregated_attestation_by_slot_and_root(
+        &self,
+        slot: Slot,
+        attestation_data_root: &Hash256,
+    ) -> Option<Attestation<T::EthSpec>> {
+        self.naive_aggregation_pool
+            .read()
+            .get_by_slot_and_root(slot, attestation_data_root)
+    }
+
     /// Produce an unaggregated `Attestation` that is valid for the given `slot` and `index`.
     ///
     /// The produced `Attestation` will not be valid until it has been signed by exactly one
