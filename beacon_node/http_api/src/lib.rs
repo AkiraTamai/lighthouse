@@ -9,7 +9,7 @@ use beacon_chain::{
 use beacon_proposer_cache::BeaconProposerCache;
 use block_id::BlockId;
 use eth2::types::{self as api_types, ValidatorId};
-use eth2_libp2p::PubsubMessage;
+use eth2_libp2p::{NetworkGlobals, PubsubMessage};
 use network::NetworkMessage;
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
@@ -34,6 +34,7 @@ pub struct Context<T: BeaconChainTypes> {
     pub config: Config,
     pub chain: Option<Arc<BeaconChain<T>>>,
     pub network_tx: Option<UnboundedSender<NetworkMessage<T::EthSpec>>>,
+    pub network_globals: Option<Arc<NetworkGlobals<T::EthSpec>>>,
     pub log: Logger,
 }
 
@@ -105,6 +106,20 @@ pub fn serve<T: BeaconChainTypes>(
                     Some(cache) => Ok(cache),
                     None => Err(crate::reject::custom_not_found(
                         "Beacon proposer cache is not initialized.".to_string(),
+                    )),
+                }
+            })
+    };
+
+    let inner_network_globals = ctx.network_globals.clone();
+    let network_globals = || {
+        warp::any()
+            .map(move || inner_network_globals.clone())
+            .and_then(|network_globals| async move {
+                match network_globals {
+                    Some(globals) => Ok(globals),
+                    None => Err(crate::reject::custom_not_found(
+                        "network globals are not initialized.".to_string(),
                     )),
                 }
             })
@@ -895,6 +910,40 @@ pub fn serve<T: BeaconChainTypes>(
         });
 
     /*
+     * node
+     */
+
+    // GET node/syncing
+    let get_node_syncing = eth1_v1
+        .and(warp::path("node"))
+        .and(warp::path("syncing"))
+        .and(warp::path::end())
+        .and(network_globals())
+        .and(chain_filter.clone())
+        .and_then(
+            |network_globals: Arc<NetworkGlobals<T::EthSpec>>, chain: Arc<BeaconChain<T>>| {
+                blocking_json_task(move || {
+                    let head_slot = chain
+                        .head_info()
+                        .map(|info| info.slot)
+                        .map_err(crate::reject::beacon_chain_error)?;
+                    let current_slot = chain.slot().map_err(crate::reject::beacon_chain_error)?;
+
+                    // Taking advantage of saturating subtraction on slot.
+                    let sync_distance = current_slot - head_slot;
+
+                    let syncing_data = api_types::SyncingData {
+                        is_syncing: network_globals.sync_state.read().is_syncing(),
+                        head_slot,
+                        sync_distance,
+                    };
+
+                    Ok(api_types::GenericResponse::from(syncing_data))
+                })
+            },
+        );
+
+    /*
      * validator
      */
 
@@ -1159,6 +1208,7 @@ pub fn serve<T: BeaconChainTypes>(
                 .or(get_config_deposit_contract.boxed())
                 .or(get_debug_beacon_states.boxed())
                 .or(get_debug_beacon_heads.boxed())
+                .or(get_node_syncing.boxed())
                 .or(get_validator_duties_attester.boxed())
                 .or(get_validator_duties_proposer.boxed())
                 .or(get_validator_blocks.boxed())

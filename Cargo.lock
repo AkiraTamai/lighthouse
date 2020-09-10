@@ -2303,6 +2303,7 @@ name = "http_api"
 version = "0.1.0"
 dependencies = [
  "beacon_chain",
+ "discv5",
  "environment",
  "eth1",
  "eth2",

@@ -321,6 +321,13 @@ pub struct ChainHeadData {
     pub root: Hash256,
 }
 
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SyncingData {
+    pub is_syncing: bool,
+    pub head_slot: Slot,
+    pub sync_distance: Slot,
+}
+
 #[derive(Clone, PartialEq, Debug, Deserialize)]
 #[serde(try_from = "String", bound = "T: FromStr")]
 pub struct QueryVec<T: FromStr>(pub Vec<T>);

@@ -5,8 +5,10 @@ use beacon_chain::{
     },
     BeaconChain, StateSkipConfig,
 };
+use discv5::enr::{CombinedKey, EnrBuilder};
 use environment::null_logger;
 use eth2::{types::*, BeaconNodeClient, Url};
+use eth2_libp2p::NetworkGlobals;
 use http_api::{Config, Context};
 use network::NetworkMessage;
 use std::convert::TryInto;
@@ -128,6 +130,12 @@ impl ApiTester {
 
         let (network_tx, network_rx) = mpsc::unbounded_channel();
 
+        let log = null_logger().unwrap();
+
+        let enr_key = CombinedKey::generate_secp256k1();
+        let enr = EnrBuilder::new("v4").build(&enr_key).unwrap();
+        let network_globals = NetworkGlobals::new(enr, 42, 42, &log);
+
         let context = Arc::new(Context {
             config: Config {
                 enabled: true,
@@ -136,7 +144,8 @@ impl ApiTester {
             },
             chain: Some(chain.clone()),
             network_tx: Some(network_tx),
-            log: null_logger().unwrap(),
+            network_globals: Some(Arc::new(network_globals)),
+            log,
         });
         let ctx = context.clone();
         let (shutdown_tx, shutdown_rx) = oneshot::channel();
@@ -952,6 +961,22 @@ impl ApiTester {
         self
     }
 
+    pub async fn test_get_node_syncing(self) -> Self {
+        let result = self.client.get_node_syncing().await.unwrap().data;
+        let head_slot = self.chain.head_info().unwrap().slot;
+        let sync_distance = self.chain.slot().unwrap() - head_slot;
+
+        let expected = SyncingData {
+            is_syncing: false,
+            head_slot,
+            sync_distance,
+        };
+
+        assert_eq!(result, expected);
+
+        self
+    }
+
     pub async fn test_get_debug_beacon_states(self) -> Self {
         for state_id in self.interesting_state_ids() {
             let result = self
@@ -1552,6 +1577,11 @@ async fn debug_get() {
         .await
         .test_get_debug_beacon_heads()
         .await;
+}
+
+#[tokio::test(core_threads = 2)]
+async fn node_get() {
+    ApiTester::new().test_get_node_syncing().await;
 }
 
 #[tokio::test(core_threads = 2)]

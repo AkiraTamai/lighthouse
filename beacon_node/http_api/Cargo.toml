@@ -26,3 +26,4 @@ state_processing = { path = "../../consensus/state_processing" }
 store = { path = "../store" }
 environment = { path = "../../lighthouse/environment" }
 tree_hash = { path = "../../consensus/tree_hash" }
+discv5 = { version = "0.1.0-alpha.10", features = ["libp2p"] }

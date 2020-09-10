@@ -512,6 +512,18 @@ impl BeaconNodeClient {
         self.get(path).await
     }
 
+    /// `GET node/syncing`
+    pub async fn get_node_syncing(&self) -> Result<GenericResponse<SyncingData>, Error> {
+        let mut path = self.server.clone();
+
+        path.path_segments_mut()
+            .expect("path is base")
+            .push("node")
+            .push("syncing");
+
+        self.get(path).await
+    }
+
     /// `GET debug/beacon/states/{state_id}`
     pub async fn get_debug_beacon_states<T: EthSpec>(
         &self,
