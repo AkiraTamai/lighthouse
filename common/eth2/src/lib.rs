@@ -1,12 +1,13 @@
 pub mod types;
 
 use self::types::*;
-use reqwest::{IntoUrl, Response, StatusCode};
+use reqwest::{IntoUrl, Response};
 use serde::{de::DeserializeOwned, Serialize};
 use std::convert::TryFrom;
+use std::fmt;
 
 pub use reqwest;
-pub use reqwest::Url;
+pub use reqwest::{StatusCode, Url};
 
 #[derive(Debug)]
 pub enum Error {
@@ -25,6 +26,13 @@ impl Error {
     }
 }
 
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
+
+#[derive(Clone)]
 pub struct BeaconNodeClient {
     client: reqwest::Client,
     server: Url,
