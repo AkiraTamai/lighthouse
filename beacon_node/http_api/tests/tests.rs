@@ -1247,7 +1247,7 @@ impl ApiTester {
         self
     }
 
-    pub async fn test_get_validator_aggregate_and_proofs(mut self) -> Self {
+    pub async fn get_aggregate(&mut self) -> SignedAggregateAndProof<E> {
         let slot = self.chain.slot().unwrap();
         let epoch = self.chain.epoch().unwrap();
 
@@ -1326,7 +1326,7 @@ impl ApiTester {
             )
             .unwrap();
 
-        let aggregate = SignedAggregateAndProof::from_aggregate(
+        SignedAggregateAndProof::from_aggregate(
             i as u64,
             attestation,
             Some(proof),
@@ -1334,7 +1334,11 @@ impl ApiTester {
             &fork,
             genesis_validators_root,
             &self.chain.spec,
-        );
+        )
+    }
+
+    pub async fn test_get_validator_aggregate_and_proofs_valid(mut self) -> Self {
+        let aggregate = self.get_aggregate().await;
 
         self.client
             .post_validator_aggregate_and_proof::<E>(&aggregate)
@@ -1342,6 +1346,21 @@ impl ApiTester {
             .unwrap();
 
         assert!(self.network_rx.try_recv().is_ok());
+
+        self
+    }
+
+    pub async fn test_get_validator_aggregate_and_proofs_invalid(mut self) -> Self {
+        let mut aggregate = self.get_aggregate().await;
+
+        aggregate.message.aggregate.data.slot += 1;
+
+        self.client
+            .post_validator_aggregate_and_proof::<E>(&aggregate)
+            .await
+            .unwrap_err();
+
+        assert!(self.network_rx.try_recv().is_err());
 
         self
     }
@@ -1563,9 +1582,16 @@ async fn get_validator_aggregate_attestation() {
 }
 
 #[tokio::test(core_threads = 2)]
-async fn get_validator_aggregate_and_proofs() {
+async fn get_validator_aggregate_and_proofs_valid() {
     ApiTester::new()
-        .test_get_validator_aggregate_and_proofs()
+        .test_get_validator_aggregate_and_proofs_valid()
+        .await;
+}
+
+#[tokio::test(core_threads = 2)]
+async fn get_validator_aggregate_and_proofs_invalid() {
+    ApiTester::new()
+        .test_get_validator_aggregate_and_proofs_invalid()
         .await;
 }
 
