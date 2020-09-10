@@ -21,6 +21,7 @@ eth2_libp2p = { path = "../eth2_libp2p" }
 eth1 = { path = "../eth1" }
 fork_choice = { path = "../../consensus/fork_choice" }
 state_processing = { path = "../../consensus/state_processing" }
+lighthouse_version = { path = "../../common/lighthouse_version" }
 
 [dev-dependencies]
 store = { path = "../store" }

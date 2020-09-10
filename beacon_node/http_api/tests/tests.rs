@@ -961,6 +961,18 @@ impl ApiTester {
         self
     }
 
+    pub async fn test_get_node_version(self) -> Self {
+        let result = self.client.get_node_version().await.unwrap().data;
+
+        let expected = VersionData {
+            version: lighthouse_version::version_with_platform(),
+        };
+
+        assert_eq!(result, expected);
+
+        self
+    }
+
     pub async fn test_get_node_syncing(self) -> Self {
         let result = self.client.get_node_syncing().await.unwrap().data;
         let head_slot = self.chain.head_info().unwrap().slot;
@@ -1581,7 +1593,11 @@ async fn debug_get() {
 
 #[tokio::test(core_threads = 2)]
 async fn node_get() {
-    ApiTester::new().test_get_node_syncing().await;
+    ApiTester::new()
+        .test_get_node_version()
+        .await
+        .test_get_node_syncing()
+        .await;
 }
 
 #[tokio::test(core_threads = 2)]

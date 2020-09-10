@@ -5,6 +5,7 @@ use reqwest::{IntoUrl, Response, StatusCode};
 use serde::{de::DeserializeOwned, Serialize};
 use std::convert::TryFrom;
 
+pub use reqwest;
 pub use reqwest::Url;
 
 #[derive(Debug)]
@@ -38,6 +39,13 @@ impl BeaconNodeClient {
             client: reqwest::Client::new(),
             server,
         })
+    }
+
+    /// Returns `Err(())` if the URL is invalid.
+    pub fn from_components(mut server: Url, client: reqwest::Client) -> Result<Self, ()> {
+        server.path_segments_mut()?.push("eth").push("v1");
+
+        Ok(Self { client, server })
     }
 
     async fn get<T: DeserializeOwned, U: IntoUrl>(&self, url: U) -> Result<T, Error> {
@@ -508,6 +516,18 @@ impl BeaconNodeClient {
             .expect("path is base")
             .push("config")
             .push("deposit_contract");
+
+        self.get(path).await
+    }
+
+    /// `GET node/version`
+    pub async fn get_node_version(&self) -> Result<GenericResponse<VersionData>, Error> {
+        let mut path = self.server.clone();
+
+        path.path_segments_mut()
+            .expect("path is base")
+            .push("node")
+            .push("version");
 
         self.get(path).await
     }

@@ -10,6 +10,7 @@ use beacon_proposer_cache::BeaconProposerCache;
 use block_id::BlockId;
 use eth2::types::{self as api_types, ValidatorId};
 use eth2_libp2p::{NetworkGlobals, PubsubMessage};
+use lighthouse_version::version_with_platform;
 use network::NetworkMessage;
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
@@ -913,6 +914,19 @@ pub fn serve<T: BeaconChainTypes>(
      * node
      */
 
+    // GET node/version
+    let get_node_version = eth1_v1
+        .and(warp::path("node"))
+        .and(warp::path("version"))
+        .and(warp::path::end())
+        .and_then(|| {
+            blocking_json_task(move || {
+                Ok(api_types::GenericResponse::from(api_types::VersionData {
+                    version: version_with_platform().to_string(),
+                }))
+            })
+        });
+
     // GET node/syncing
     let get_node_syncing = eth1_v1
         .and(warp::path("node"))
@@ -1208,6 +1222,7 @@ pub fn serve<T: BeaconChainTypes>(
                 .or(get_config_deposit_contract.boxed())
                 .or(get_debug_beacon_states.boxed())
                 .or(get_debug_beacon_heads.boxed())
+                .or(get_node_version.boxed())
                 .or(get_node_syncing.boxed())
                 .or(get_validator_duties_attester.boxed())
                 .or(get_validator_duties_proposer.boxed())
