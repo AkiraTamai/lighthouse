@@ -16,8 +16,8 @@ use tokio::sync::mpsc;
 use tokio::sync::oneshot;
 use tree_hash::TreeHash;
 use types::{
-    test_utils::generate_deterministic_keypairs, BeaconState, Domain, EthSpec, Hash256, Keypair,
-    MainnetEthSpec, RelativeEpoch, SignedRoot, Slot,
+    test_utils::generate_deterministic_keypairs, AggregateSignature, BeaconState, BitList, Domain,
+    EthSpec, Hash256, Keypair, MainnetEthSpec, RelativeEpoch, SelectionProof, SignedRoot, Slot,
 };
 
 type E = MainnetEthSpec;
@@ -1247,7 +1247,104 @@ impl ApiTester {
         self
     }
 
-    // TODO: test agg and proof
+    pub async fn test_get_validator_aggregate_and_proofs(mut self) -> Self {
+        let slot = self.chain.slot().unwrap();
+        let epoch = self.chain.epoch().unwrap();
+
+        let mut head = self.chain.head().unwrap();
+        head.beacon_state
+            .build_committee_cache(RelativeEpoch::Current, &self.chain.spec)
+            .unwrap();
+
+        let committee_len = head.beacon_state.get_committee_count_at_slot(slot).unwrap();
+        let fork = head.beacon_state.fork;
+        let genesis_validators_root = self.chain.genesis_validators_root;
+
+        let mut duties = vec![];
+        for i in 0..self.validator_keypairs.len() {
+            duties.push(
+                self.client
+                    .get_validator_duties_attester(epoch, Some(&[i as u64]))
+                    .await
+                    .unwrap()
+                    .data[0]
+                    .clone(),
+            )
+        }
+
+        let (i, kp, duty, proof) = self
+            .validator_keypairs
+            .iter()
+            .enumerate()
+            .find_map(|(i, kp)| {
+                let duty = duties[i].clone();
+
+                let proof = SelectionProof::new::<E>(
+                    duty.slot,
+                    &kp.sk,
+                    &fork,
+                    genesis_validators_root,
+                    &self.chain.spec,
+                );
+
+                if proof
+                    .is_aggregator(committee_len as usize, &self.chain.spec)
+                    .unwrap()
+                {
+                    Some((i, kp, duty, proof))
+                } else {
+                    None
+                }
+            })
+            .expect("there is at least one aggregator for this epoch")
+            .clone();
+
+        if duty.slot > slot {
+            self.chain.slot_clock.set_slot(duty.slot.into());
+        }
+
+        let attestation_data = self
+            .client
+            .get_validator_attestation_data(duty.slot, duty.committee_index)
+            .await
+            .unwrap()
+            .data;
+
+        let mut attestation = Attestation {
+            aggregation_bits: BitList::with_capacity(duty.committee_length as usize).unwrap(),
+            data: attestation_data,
+            signature: AggregateSignature::infinity(),
+        };
+
+        attestation
+            .sign(
+                &kp.sk,
+                duty.validator_committee_index as usize,
+                &fork,
+                genesis_validators_root,
+                &self.chain.spec,
+            )
+            .unwrap();
+
+        let aggregate = SignedAggregateAndProof::from_aggregate(
+            i as u64,
+            attestation,
+            Some(proof),
+            &kp.sk,
+            &fork,
+            genesis_validators_root,
+            &self.chain.spec,
+        );
+
+        self.client
+            .post_validator_aggregate_and_proof::<E>(&aggregate)
+            .await
+            .unwrap();
+
+        assert!(self.network_rx.try_recv().is_ok());
+
+        self
+    }
 
     pub async fn test_get_validator_beacon_committee_subscriptions(mut self) -> Self {
         let subscription = BeaconCommitteeSubscription {
@@ -1462,6 +1559,13 @@ async fn get_validator_attestation_data() {
 async fn get_validator_aggregate_attestation() {
     ApiTester::new()
         .test_get_validator_aggregate_attestation()
+        .await;
+}
+
+#[tokio::test(core_threads = 2)]
+async fn get_validator_aggregate_and_proofs() {
+    ApiTester::new()
+        .test_get_validator_aggregate_and_proofs()
         .await;
 }
 

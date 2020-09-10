@@ -1042,12 +1042,17 @@ pub fn serve<T: BeaconChainTypes>(
         .and_then(
             |query: api_types::ValidatorAggregateAttestationQuery, chain: Arc<BeaconChain<T>>| {
                 blocking_json_task(move || {
-                    Ok(chain
+                    chain
                         .get_aggregated_attestation_by_slot_and_root(
                             query.slot,
                             &query.attestation_data_root,
                         )
-                        .map(api_types::GenericResponse::from))
+                        .map(api_types::GenericResponse::from)
+                        .ok_or_else(|| {
+                            crate::reject::custom_not_found(
+                                "no matching aggregate found".to_string(),
+                            )
+                        })
                 })
             },
         );
