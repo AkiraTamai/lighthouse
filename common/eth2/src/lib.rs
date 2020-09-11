@@ -725,7 +725,7 @@ impl BeaconNodeClient {
     /// `POST validator/beacon_committee_subscriptions`
     pub async fn post_validator_beacon_committee_subscriptions(
         &self,
-        subscription: &BeaconCommitteeSubscription,
+        subscriptions: &Vec<BeaconCommitteeSubscription>,
     ) -> Result<(), Error> {
         let mut path = self.server.clone();
 
@@ -734,7 +734,7 @@ impl BeaconNodeClient {
             .push("validator")
             .push("beacon_committee_subscriptions");
 
-        self.post(path, subscription).await?;
+        self.post(path, subscriptions).await?;
 
         Ok(())
     }

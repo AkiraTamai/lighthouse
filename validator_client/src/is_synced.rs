@@ -1,8 +1,6 @@
-use remote_beacon_node::RemoteBeaconNode;
-use rest_types::SyncingResponse;
+use eth2::BeaconNodeClient;
 use slog::{debug, error, Logger};
 use slot_clock::SlotClock;
-use types::EthSpec;
 
 /// A distance in slots.
 const SYNC_TOLERANCE: u64 = 4;
@@ -17,19 +15,19 @@ const SYNC_TOLERANCE: u64 = 4;
 ///
 ///  The second condition means the even if the beacon node thinks that it's syncing, we'll still
 ///  try to use it if it's close enough to the head.
-pub async fn is_synced<T: SlotClock, E: EthSpec>(
-    beacon_node: &RemoteBeaconNode<E>,
+pub async fn is_synced<T: SlotClock>(
+    beacon_node: &BeaconNodeClient,
     slot_clock: &T,
     log_opt: Option<&Logger>,
 ) -> bool {
-    let resp = match beacon_node.http.node().syncing_status().await {
+    let resp = match beacon_node.get_node_syncing().await {
         Ok(resp) => resp,
         Err(e) => {
             if let Some(log) = log_opt {
                 error!(
                     log,
                     "Unable connect to beacon node";
-                    "error" => format!("{:?}", e)
+                    "error" => e.to_string()
                 )
             }
 
@@ -37,44 +35,24 @@ pub async fn is_synced<T: SlotClock, E: EthSpec>(
         }
     };
 
-    match &resp {
-        SyncingResponse {
-            is_syncing: false, ..
-        } => true,
-        SyncingResponse {
-            is_syncing: true,
-            sync_status,
-        } => {
-            if let Some(log) = log_opt {
-                debug!(
-                    log,
-                    "Beacon node sync status";
-                    "status" => format!("{:?}", resp),
-                );
-            }
+    let is_synced = !resp.data.is_syncing || (resp.data.sync_distance.as_u64() < SYNC_TOLERANCE);
 
-            let now = if let Some(slot) = slot_clock.now() {
-                slot
-            } else {
-                // There's no good reason why we shouldn't be able to read the slot clock, so we'll
-                // indicate we're not synced if that's the case.
-                return false;
-            };
-
-            if sync_status.current_slot + SYNC_TOLERANCE >= now {
-                true
-            } else {
-                if let Some(log) = log_opt {
-                    error!(
-                        log,
-                        "Beacon node is syncing";
-                        "msg" => "not receiving new duties",
-                        "target_slot" => sync_status.highest_slot.as_u64(),
-                        "current_slot" => sync_status.current_slot.as_u64(),
-                    );
-                }
-                false
-            }
+    if !is_synced {
+        if let Some(log) = log_opt {
+            debug!(
+                log,
+                "Beacon node sync status";
+                "status" => format!("{:?}", resp),
+            );
+            error!(
+                log,
+                "Beacon node is syncing";
+                "msg" => "not receiving new duties",
+                "sync_distance" => resp.data.sync_distance.as_u64(),
+                "head_slot" => resp.data.head_slot.as_u64(),
+            );
         }
     }
+
+    is_synced
 }

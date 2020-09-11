@@ -101,6 +101,16 @@ where
     Pub: TPublicKey,
 {
     fn from(pk: GenericPublicKey<Pub>) -> Self {
+        Self::from(&pk)
+    }
+}
+
+/// Serializes the `PublicKey` in compressed form, storing the bytes in the newly created `Self`.
+impl<Pub> From<&GenericPublicKey<Pub>> for GenericPublicKeyBytes<Pub>
+where
+    Pub: TPublicKey,
+{
+    fn from(pk: &GenericPublicKey<Pub>) -> Self {
         Self {
             bytes: pk.serialize(),
             _phantom: PhantomData,
