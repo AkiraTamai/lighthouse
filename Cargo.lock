@@ -758,7 +758,6 @@ dependencies = [
  "parking_lot 0.11.0",
  "prometheus",
  "reqwest",
- "rest_api",
  "serde",
  "serde_derive",
  "serde_yaml",

@@ -44,6 +44,7 @@ pub struct Config {
     pub enabled: bool,
     pub listen_addr: Ipv4Addr,
     pub listen_port: u16,
+    pub allow_origin: Option<String>,
 }
 
 impl Default for Config {
@@ -52,6 +53,7 @@ impl Default for Config {
             enabled: false,
             listen_addr: Ipv4Addr::new(127, 0, 0, 1),
             listen_port: 5052,
+            allow_origin: None,
         }
     }
 }
@@ -87,6 +89,8 @@ pub fn serve<T: BeaconChainTypes>(
             "A disabled server should not be started".to_string(),
         ));
     }
+
+    // TODO: cors
 
     let eth1_v1 = warp::path(API_PREFIX).and(warp::path(API_VERSION));
 
@@ -1202,44 +1206,43 @@ pub fn serve<T: BeaconChainTypes>(
     let routes = warp::get()
         .and(
             get_beacon_genesis
-                .or(get_beacon_state_root.boxed())
-                .or(get_beacon_state_fork.boxed())
-                .or(get_beacon_state_finality_checkpoints.boxed())
-                .or(get_beacon_state_validators.boxed())
-                .or(get_beacon_state_validators_id.boxed())
-                .or(get_beacon_state_committees.boxed())
-                .or(get_beacon_headers.boxed())
-                .or(get_beacon_headers_block_id.boxed())
-                .or(get_beacon_block.boxed())
-                .or(get_beacon_block_attestations.boxed())
-                .or(get_beacon_block_root.boxed())
-                .or(get_beacon_pool_attestations.boxed())
-                .or(get_beacon_pool_attester_slashings.boxed())
-                .or(get_beacon_pool_proposer_slashings.boxed())
-                .or(get_beacon_pool_voluntary_exits.boxed())
-                .or(get_config_fork_schedule.boxed())
-                .or(get_config_spec.boxed())
-                .or(get_config_deposit_contract.boxed())
-                .or(get_debug_beacon_states.boxed())
-                .or(get_debug_beacon_heads.boxed())
-                .or(get_node_version.boxed())
-                .or(get_node_syncing.boxed())
-                .or(get_validator_duties_attester.boxed())
-                .or(get_validator_duties_proposer.boxed())
-                .or(get_validator_blocks.boxed())
-                .or(get_validator_attestation_data.boxed())
-                .or(get_validator_aggregate_attestation.boxed())
-                .boxed(),
+                .or(get_beacon_state_root)
+                .or(get_beacon_state_fork)
+                .or(get_beacon_state_finality_checkpoints)
+                .or(get_beacon_state_validators)
+                .or(get_beacon_state_validators_id)
+                .or(get_beacon_state_committees)
+                .or(get_beacon_headers)
+                .or(get_beacon_headers_block_id)
+                .or(get_beacon_block)
+                .or(get_beacon_block_attestations)
+                .or(get_beacon_block_root)
+                .or(get_beacon_pool_attestations)
+                .or(get_beacon_pool_attester_slashings)
+                .or(get_beacon_pool_proposer_slashings)
+                .or(get_beacon_pool_voluntary_exits)
+                .or(get_config_fork_schedule)
+                .or(get_config_spec)
+                .or(get_config_deposit_contract)
+                .or(get_debug_beacon_states)
+                .or(get_debug_beacon_heads)
+                .or(get_node_version)
+                .or(get_node_syncing)
+                .or(get_validator_duties_attester)
+                .or(get_validator_duties_proposer)
+                .or(get_validator_blocks)
+                .or(get_validator_attestation_data)
+                .or(get_validator_aggregate_attestation),
         )
+        .boxed()
         .or(warp::post().and(
             post_beacon_blocks
-                .or(post_beacon_pool_attestations.boxed())
-                .or(post_beacon_pool_attester_slashings.boxed())
-                .or(post_beacon_pool_proposer_slashings.boxed())
-                .or(post_beacon_pool_voluntary_exits.boxed())
-                .or(post_validator_aggregate_and_proofs.boxed())
-                .or(post_validator_beacon_committee_subscriptions.boxed())
-                .boxed(),
+                .or(post_beacon_pool_attestations)
+                .or(post_beacon_pool_attester_slashings)
+                .or(post_beacon_pool_proposer_slashings)
+                .or(post_beacon_pool_voluntary_exits)
+                .or(post_validator_aggregate_and_proofs)
+                .or(post_validator_beacon_committee_subscriptions),
         ))
         .recover(crate::reject::handle_rejection);
 

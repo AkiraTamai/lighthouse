@@ -13,7 +13,6 @@ use beacon_chain::{
 use bus::Bus;
 use environment::RuntimeContext;
 use eth1::{Config as Eth1Config, Service as Eth1Service};
-use eth2_config::Eth2Config;
 use eth2_libp2p::NetworkGlobals;
 use genesis::{interop_genesis_state, Eth1GenesisService};
 use network::{NetworkConfig, NetworkMessage, NetworkService};
@@ -288,57 +287,6 @@ where
         self
     }
 
-    /// Immediately starts the beacon node REST API http server.
-    pub fn http_server(
-        mut self,
-        client_config: &ClientConfig,
-        eth2_config: &Eth2Config,
-        events: Arc<Mutex<Bus<SignedBeaconBlockHash>>>,
-    ) -> Result<Self, String> {
-        let beacon_chain = self
-            .beacon_chain
-            .clone()
-            .ok_or_else(|| "http_server requires a beacon chain")?;
-        let context = self
-            .runtime_context
-            .as_ref()
-            .ok_or_else(|| "http_server requires a runtime_context")?
-            .service_context("http".into());
-        let network_globals = self
-            .network_globals
-            .clone()
-            .ok_or_else(|| "http_server requires a libp2p network")?;
-        let network_send = self
-            .network_send
-            .clone()
-            .ok_or_else(|| "http_server requires a libp2p network sender")?;
-
-        let network_info = rest_api::NetworkInfo {
-            network_globals,
-            network_chan: network_send,
-        };
-
-        let listening_addr = rest_api::start_server(
-            context.executor,
-            &client_config.rest_api,
-            beacon_chain,
-            network_info,
-            client_config
-                .create_db_path()
-                .map_err(|_| "unable to read data dir")?,
-            client_config
-                .create_freezer_db_path()
-                .map_err(|_| "unable to read freezer DB dir")?,
-            eth2_config.clone(),
-            events,
-        )
-        .map_err(|e| format!("Failed to start HTTP API: {:?}", e))?;
-
-        self.http_listen_addr = Some(listening_addr);
-
-        Ok(self)
-    }
-
     /// Immediately starts the service that periodically logs information each slot.
     pub fn notifier(self) -> Result<Self, String> {
         let context = self
@@ -388,13 +336,16 @@ where
             TColdStore,
         >,
     > {
+        // TODO: fix unwrap.
+        let log = self.runtime_context.as_ref().unwrap().log().clone();
+
         let http_api_listen_addr = if self.http_api_config.enabled {
             let ctx = Arc::new(http_api::Context {
                 config: self.http_api_config.clone(),
                 chain: self.beacon_chain.clone(),
                 network_tx: self.network_send.clone(),
-                // TODO
-                log: self.runtime_context.as_ref().unwrap().log().clone(),
+                network_globals: self.network_globals.clone(),
+                log: log.clone(),
             });
 
             // TODO
@@ -411,6 +362,7 @@ where
 
             Some(listen_addr)
         } else {
+            info!(log, "HTTP server is disabled");
             None
         };
 

@@ -88,17 +88,17 @@ pub fn get_config<E: EthSpec>(
      */
 
     if cli_args.is_present("http") {
-        client_config.rest_api.enabled = true;
+        client_config.http_api.enabled = true;
     }
 
     if let Some(address) = cli_args.value_of("http-address") {
-        client_config.rest_api.listen_address = address
+        client_config.http_api.listen_addr = address
             .parse::<Ipv4Addr>()
             .map_err(|_| "http-address is not a valid IPv4 address.")?;
     }
 
     if let Some(port) = cli_args.value_of("http-port") {
-        client_config.rest_api.port = port
+        client_config.http_api.listen_port = port
             .parse::<u16>()
             .map_err(|_| "http-port is not a valid u16.")?;
     }
@@ -109,30 +109,7 @@ pub fn get_config<E: EthSpec>(
         hyper::header::HeaderValue::from_str(allow_origin)
             .map_err(|_| "Invalid allow-origin value")?;
 
-        client_config.rest_api.allow_origin = allow_origin.to_string();
-    }
-
-    /*
-     * Standard eth2.0 API server
-     *
-     * Note: these "std-http" commands are only whilst the API is in beta. Eventually the existing
-     * HTTP server will be replaced and these flags will disappear.
-     */
-
-    if cli_args.is_present("std-http") {
-        client_config.http_api.enabled = true;
-    }
-
-    if let Some(address) = cli_args.value_of("std-http-address") {
-        client_config.http_api.listen_addr = address
-            .parse::<Ipv4Addr>()
-            .map_err(|_| "std-http-address is not a valid IPv4 address.")?;
-    }
-
-    if let Some(port) = cli_args.value_of("std-http-port") {
-        client_config.http_api.listen_port = port
-            .parse::<u16>()
-            .map_err(|_| "std-http-port is not a valid u16.")?;
+        client_config.http_api.allow_origin = Some(allow_origin.to_string());
     }
 
     /*
@@ -225,7 +202,7 @@ pub fn get_config<E: EthSpec>(
             unused_port("tcp").map_err(|e| format!("Failed to get port for libp2p: {}", e))?;
         client_config.network.discovery_port =
             unused_port("udp").map_err(|e| format!("Failed to get port for discovery: {}", e))?;
-        client_config.rest_api.port = 0;
+        client_config.http_api.listen_port = 0;
         client_config.websocket_server.port = 0;
     }
 
@@ -236,7 +213,8 @@ pub fn get_config<E: EthSpec>(
 
     client_config.eth1.deposit_contract_address =
         format!("{:?}", eth2_testnet_config.deposit_contract_address()?);
-    if client_config.eth1.deposit_contract_address != spec.deposit_contract_address.to_string() {
+    let spec_contract_address = format!("{:?}", spec.deposit_contract_address);
+    if client_config.eth1.deposit_contract_address != spec_contract_address {
         return Err("Testnet contract address does not match spec".into());
     }
 
