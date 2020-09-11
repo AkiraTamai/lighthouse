@@ -1,8 +1,9 @@
 use clap::ArgMatches;
 use clap_utils::{parse_optional, parse_path_with_default_in_home_dir};
+use eth2::types::Graffiti;
 use serde_derive::{Deserialize, Serialize};
 use std::path::PathBuf;
-use types::{Graffiti, GRAFFITI_BYTES_LEN};
+use types::GRAFFITI_BYTES_LEN;
 
 pub const DEFAULT_HTTP_SERVER: &str = "http://localhost:5052/";
 pub const DEFAULT_DATA_DIR: &str = ".lighthouse/validators";
@@ -92,15 +93,14 @@ impl Config {
                     GRAFFITI_BYTES_LEN
                 ));
             } else {
-                // Default graffiti to all 0 bytes.
-                let mut graffiti = Graffiti::default();
+                let mut graffiti = [0; 32];
 
                 // Copy the provided bytes over.
                 //
                 // Panic-free because `graffiti_bytes.len()` <= `GRAFFITI_BYTES_LEN`.
                 graffiti[..graffiti_bytes.len()].copy_from_slice(&graffiti_bytes);
 
-                config.graffiti = Some(graffiti);
+                config.graffiti = Some(graffiti.into());
             }
         }
 

@@ -93,13 +93,14 @@ impl DutyAndProof {
 
     /// Returns the information required for an attesting validator, if they are scheduled to
     /// attest.
-    pub fn attestation_duties(&self) -> Option<(Slot, CommitteeIndex, usize, u64, u64)> {
+    pub fn attestation_duties(&self) -> Option<(Slot, CommitteeIndex, usize, u64, u64, u64)> {
         Some((
             self.duty.attestation_slot?,
             self.duty.attestation_committee_index?,
             self.duty.attestation_committee_position?,
             self.duty.validator_index?,
             self.duty.committee_count_at_slot?,
+            self.duty.committee_length?,
         ))
     }
 
@@ -111,15 +112,7 @@ impl DutyAndProof {
 impl Into<DutyAndProof> for ValidatorDuty {
     fn into(self) -> DutyAndProof {
         DutyAndProof {
-            duty: ValidatorDuty {
-                validator_pubkey: self.validator_pubkey,
-                validator_index: self.validator_index,
-                attestation_slot: self.attestation_slot,
-                attestation_committee_index: self.attestation_committee_index,
-                attestation_committee_position: self.attestation_committee_position,
-                committee_count_at_slot: self.committee_count_at_slot,
-                block_proposal_slots: self.block_proposal_slots,
-            },
+            duty: self,
             selection_proof: None,
         }
     }

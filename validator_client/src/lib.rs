@@ -20,7 +20,6 @@ use clap::ArgMatches;
 use duties_service::{DutiesService, DutiesServiceBuilder};
 use environment::RuntimeContext;
 use eth2::{reqwest::ClientBuilder, BeaconNodeClient, StatusCode, Url};
-use eth2_config::Eth2Config;
 use fork_service::{ForkService, ForkServiceBuilder};
 use futures::channel::mpsc;
 use initialized_validators::InitializedValidators;
@@ -28,6 +27,7 @@ use notifier::spawn_notifier;
 use slog::{error, info, Logger};
 use slot_clock::SlotClock;
 use slot_clock::SystemTimeSlotClock;
+use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::time::{delay_for, Duration};
 use types::{EthSpec, Hash256, YamlConfig};
@@ -62,7 +62,7 @@ impl<T: EthSpec> ProductionValidatorClient<T> {
 
     /// Instantiates the validator client, _without_ starting the timers to trigger block
     /// and attestation production.
-    pub async fn new(mut context: RuntimeContext<T>, config: Config) -> Result<Self, String> {
+    pub async fn new(context: RuntimeContext<T>, config: Config) -> Result<Self, String> {
         let log = context.log().clone();
 
         info!(
@@ -122,7 +122,7 @@ impl<T: EthSpec> ProductionValidatorClient<T> {
             tuple = init_from_beacon_node(&beacon_node, &context) => tuple?,
             () = context.executor.exit() => return Err("Shutting down".to_string())
         };
-        let mut beacon_node_spec = yaml_config.apply_to_chain_spec(&T::default_spec())
+        let beacon_node_spec = yaml_config.apply_to_chain_spec::<T>(&T::default_spec())
             .ok_or_else(|| format!(
                     "The minimal/mainnet spec type of the beacon node does not match the validator client. \
                     See the --testnet command."
@@ -208,7 +208,10 @@ impl<T: EthSpec> ProductionValidatorClient<T> {
 
         self.duties_service
             .clone()
-            .start_update_service(block_service_tx, &self.context.eth2_config.spec)
+            .start_update_service(
+                block_service_tx,
+                Arc::new(self.context.eth2_config.spec.clone()),
+            )
             .map_err(|e| format!("Unable to start duties service: {}", e))?;
 
         self.fork_service

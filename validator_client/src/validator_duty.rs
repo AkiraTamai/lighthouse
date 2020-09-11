@@ -23,6 +23,8 @@ pub struct ValidatorDuty {
     pub attestation_committee_position: Option<usize>,
     /// The committee count at `attestation_slot`.
     pub committee_count_at_slot: Option<u64>,
+    /// The number of validators in the committee.
+    pub committee_length: Option<u64>,
     /// The slots in which a validator must propose a block (can be empty).
     ///
     /// Should be set to `None` when duties are not yet known (before the current epoch).
@@ -38,6 +40,7 @@ impl ValidatorDuty {
             attestation_committee_index: None,
             attestation_committee_position: None,
             committee_count_at_slot: None,
+            committee_length: None,
             block_proposal_slots: None,
         }
     }
@@ -87,6 +90,7 @@ impl ValidatorDuty {
                 attestation_committee_index: Some(attester.committee_index),
                 attestation_committee_position: Some(attester.validator_committee_index as usize),
                 committee_count_at_slot: Some(attester.committees_at_slot),
+                committee_length: Some(attester.committee_length),
                 block_proposal_slots: Some(block_proposal_slots),
             })
         } else {

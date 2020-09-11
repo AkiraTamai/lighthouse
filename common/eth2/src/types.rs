@@ -394,6 +394,12 @@ impl fmt::Display for Graffiti {
     }
 }
 
+impl From<[u8; GRAFFITI_BYTES_LEN]> for Graffiti {
+    fn from(bytes: [u8; GRAFFITI_BYTES_LEN]) -> Self {
+        Self(bytes)
+    }
+}
+
 impl Into<[u8; GRAFFITI_BYTES_LEN]> for Graffiti {
     fn into(self) -> [u8; GRAFFITI_BYTES_LEN] {
         self.0

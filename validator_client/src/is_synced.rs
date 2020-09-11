@@ -1,5 +1,5 @@
 use eth2::BeaconNodeClient;
-use slog::{debug, error, Logger};
+use slog::{debug, error, warn, Logger};
 use slot_clock::SlotClock;
 
 /// A distance in slots.
@@ -37,20 +37,34 @@ pub async fn is_synced<T: SlotClock>(
 
     let is_synced = !resp.data.is_syncing || (resp.data.sync_distance.as_u64() < SYNC_TOLERANCE);
 
-    if !is_synced {
-        if let Some(log) = log_opt {
+    if let Some(log) = log_opt {
+        if !is_synced {
             debug!(
                 log,
                 "Beacon node sync status";
                 "status" => format!("{:?}", resp),
             );
-            error!(
+
+            warn!(
                 log,
                 "Beacon node is syncing";
                 "msg" => "not receiving new duties",
                 "sync_distance" => resp.data.sync_distance.as_u64(),
                 "head_slot" => resp.data.head_slot.as_u64(),
             );
+        }
+
+        if let Some(local_slot) = slot_clock.now() {
+            let remote_slot = resp.data.head_slot + resp.data.sync_distance;
+            if remote_slot + 1 < local_slot || local_slot + 1 < remote_slot {
+                error!(
+                    log,
+                    "Time discrepancy with beacon node";
+                    "msg" => "check the system time on this host and the beacon node",
+                    "beacon_node_slot" => remote_slot,
+                    "local_slot" => local_slot,
+                );
+            }
         }
     }
 
